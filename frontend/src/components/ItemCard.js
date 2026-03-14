@@ -14,9 +14,7 @@ export function StarRating({ rating, small }) {
           key={i}
           style={{
             color:
-              i <= full || (i === full + 1 && half)
-                ? "#ffc107"
-                : "rgba(255,255,255,0.15)",
+              i <= full || (i === full + 1 && half) ? "#f59e0b" : "#d1d5db",
           }}
         >
           ★
