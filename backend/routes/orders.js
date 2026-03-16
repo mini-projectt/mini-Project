@@ -2,9 +2,22 @@ const express = require("express");
 const router = express.Router();
 const Order = require("../models/Order");
 const Item = require("../models/Item");
+const { authenticate, authorizeRole } = require("../middleware/auth");
+
+// GET user's own orders (authenticated users)
+router.get("/my-orders", authenticate, async (req, res) => {
+  try {
+    const orders = await Order.find({ user: req.user._id })
+      .populate("item")
+      .sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET all orders (admin)
-router.get("/", async (req, res) => {
+router.get("/", authenticate, authorizeRole("admin"), async (req, res) => {
   try {
     const orders = await Order.find().populate("item").sort({ createdAt: -1 });
     res.json(orders);
@@ -14,7 +27,7 @@ router.get("/", async (req, res) => {
 });
 
 // POST create order (rent an item)
-router.post("/", async (req, res) => {
+router.post("/", authenticate, async (req, res) => {
   try {
     const {
       item: itemId,
@@ -37,9 +50,10 @@ router.post("/", async (req, res) => {
     const totalAmount = item.pricePerDay * rentalDays;
 
     const order = new Order({
-      customerName,
-      customerEmail,
-      customerPhone,
+      user: req.user._id,
+      customerName: customerName || req.user.name,
+      customerEmail: customerEmail || req.user.email,
+      customerPhone: customerPhone || req.user.phone,
       item: itemId,
       itemName: item.name,
       rentalDays,
@@ -62,7 +76,7 @@ router.post("/", async (req, res) => {
 });
 
 // PUT update order status (admin)
-router.put("/:id", async (req, res) => {
+router.put("/:id", authenticate, authorizeRole("admin"), async (req, res) => {
   try {
     const order = await Order.findByIdAndUpdate(req.params.id, req.body, {
       new: true,

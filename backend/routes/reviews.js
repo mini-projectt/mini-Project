@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Review = require("../models/Review");
 const Item = require("../models/Item");
+const { authenticate } = require("../middleware/auth");
 
 // GET all reviews for an item
 router.get("/:itemId", async (req, res) => {
@@ -16,17 +17,17 @@ router.get("/:itemId", async (req, res) => {
 });
 
 // POST add a review for an item
-router.post("/:itemId", async (req, res) => {
+router.post("/:itemId", authenticate, async (req, res) => {
   try {
     const { reviewerName, rating, comment } = req.body;
 
-    if (!reviewerName || !rating) {
-      return res.status(400).json({ error: "Name and rating are required." });
+    if (!rating) {
+      return res.status(400).json({ error: "Rating is required." });
     }
 
     const review = new Review({
       item: req.params.itemId,
-      reviewerName,
+      reviewerName: reviewerName || req.user.name,
       rating: Number(rating),
       comment,
     });

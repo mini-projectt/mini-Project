@@ -17,6 +17,7 @@ app.use(
 );
 
 // Routes
+app.use("/api/auth", require("./routes/auth"));
 app.use("/api/items", require("./routes/items"));
 app.use("/api/orders", require("./routes/orders"));
 app.use("/api/reviews", require("./routes/reviews"));
