@@ -123,7 +123,7 @@ def run_final_qa_check():
 
 
 if __name__ == "__main__":
-    input_video = "test_drop.mp4"   
+    input_video = "test_drop.mp4"       
     output_video = "tracked_result.mp4" 
     test_bounding_box = (200, 150, 200, 250) 
     
