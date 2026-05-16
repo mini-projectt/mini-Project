@@ -1,6 +1,12 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@gmail.com";
+
+const isAdminOwner = (user) => {
+  return user?.role === "admin" && user?.email === ADMIN_EMAIL;
+};
+
 // Middleware to verify JWT token and authenticate user
 const authenticate = async (req, res, next) => {
   try {
@@ -46,6 +52,15 @@ const authorizeRole = (...roles) => {
       return res.status(401).json({ message: "Authentication required" });
     }
 
+    if (roles.includes("admin")) {
+      if (!isAdminOwner(req.user)) {
+        return res.status(403).json({
+          message: "Forbidden: Admin owner access only",
+        });
+      }
+      return next();
+    }
+
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         message:
@@ -53,9 +68,8 @@ const authorizeRole = (...roles) => {
       });
     }
 
-    next();
+    return next();
   };
 };
 
 module.exports = { authenticate, authorizeRole };
-

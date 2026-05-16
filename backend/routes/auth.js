@@ -4,6 +4,8 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { authenticate } = require("../middleware/auth");
 
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@gmail.com";
+
 // Helper function to generate JWT token
 const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, {
@@ -15,6 +17,10 @@ const generateToken = (userId) => {
 router.post("/register", async (req, res) => {
   try {
     const { email, password, name, phone } = req.body;
+
+    if (email === ADMIN_EMAIL) {
+      return res.status(403).json({ error: "This email is reserved." });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });

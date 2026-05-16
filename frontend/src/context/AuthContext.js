@@ -3,6 +3,8 @@ import { login as loginAPI, register as registerAPI, getMe } from "../api/api";
 
 const AuthContext = createContext(null);
 
+const ADMIN_EMAIL = "admin@gmail.com";
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem("token") || null);
@@ -78,7 +80,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     isAuthenticated: !!user,
-    isAdmin: user?.role === "admin",
+    isAdmin: user?.role === "admin" && user?.email === ADMIN_EMAIL,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

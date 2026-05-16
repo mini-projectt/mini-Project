@@ -1,9 +1,13 @@
 const mongoose = require("mongoose");
 require("dotenv").config();
 const Item = require("./models/Item");
+const User = require("./models/User");
 
 const MONGO_URI =
   process.env.MONGO_URI || "mongodb://localhost:27017/rentalapp";
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@gmail.com";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
 
 const items = [
   {
@@ -281,12 +285,340 @@ const items = [
       "https://images.unsplash.com/photo-1509395176047-4a66953fd231?w=400",
     condition: "Good",
   },
+  {
+    name: "Safety Jacket (Hi-Vis)",
+    description:
+      "High-visibility safety jacket with reflective stripes for night shifts and roadside work.",
+    category: "Clothing",
+    pricePerDay: 120,
+    depositAmount: 600,
+    available: true,
+    quantity: 10,
+    imageUrl:
+      "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Lab Coat (Unisex)",
+    description:
+      "Durable lab coat for workshops, labs, and cleaning staff. Multiple sizes available.",
+    category: "Clothing",
+    pricePerDay: 100,
+    depositAmount: 500,
+    available: true,
+    quantity: 8,
+    imageUrl:
+      "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Chef Uniform Set",
+    description:
+      "Chef coat and apron set for catering, events, and commercial kitchens.",
+    category: "Clothing",
+    pricePerDay: 180,
+    depositAmount: 800,
+    available: true,
+    quantity: 6,
+    imageUrl: "https://images.unsplash.com/photo-1547496502-affa22d38842?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Winter Jacket (Thermal)",
+    description: "Insulated thermal jacket for outdoor crews in cold weather.",
+    category: "Clothing",
+    pricePerDay: 160,
+    depositAmount: 700,
+    available: true,
+    quantity: 6,
+    imageUrl:
+      "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Traditional Kurta Set",
+    description: "Classic kurta set for cultural events and ceremonies.",
+    category: "Clothing",
+    pricePerDay: 300,
+    depositAmount: 1200,
+    available: true,
+    quantity: 5,
+    imageUrl:
+      "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Circular Saw (7-1/4 inch)",
+    description: "High-power circular saw for wood cutting and framing work.",
+    category: "Power Tools",
+    pricePerDay: 350,
+    depositAmount: 2000,
+    available: true,
+    quantity: 3,
+    imageUrl:
+      "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Jigsaw (Variable Speed)",
+    description:
+      "Precision jigsaw for curved cuts in wood, plastic, and metal.",
+    category: "Power Tools",
+    pricePerDay: 280,
+    depositAmount: 1600,
+    available: true,
+    quantity: 3,
+    imageUrl: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Heat Gun",
+    description:
+      "Dual temperature heat gun for paint removal, shrink wrapping, and repairs.",
+    category: "Power Tools",
+    pricePerDay: 220,
+    depositAmount: 1200,
+    available: true,
+    quantity: 4,
+    imageUrl:
+      "https://images.unsplash.com/photo-1586864387967-d02ef85d93e8?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Rotary Tool Kit",
+    description: "Multi-purpose rotary tool with 100-piece accessory kit.",
+    category: "Power Tools",
+    pricePerDay: 260,
+    depositAmount: 1400,
+    available: true,
+    quantity: 4,
+    imageUrl:
+      "https://images.unsplash.com/photo-1585123334904-845d60e97b29?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Electric Planer",
+    description: "Power planer for smoothing doors and wooden surfaces.",
+    category: "Power Tools",
+    pricePerDay: 300,
+    depositAmount: 1700,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1581091012184-5c7f1a5f1f0a?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Water Transfer Pump (1.5 HP)",
+    description: "High flow transfer pump for dewatering sites and irrigation.",
+    category: "Pumps",
+    pricePerDay: 620,
+    depositAmount: 3200,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Sump Pump (0.75 HP)",
+    description: "Compact sump pump for basement drainage and water removal.",
+    category: "Pumps",
+    pricePerDay: 420,
+    depositAmount: 2100,
+    available: true,
+    quantity: 3,
+    imageUrl: "https://images.unsplash.com/photo-1560347876-aeef00ee58a1?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Scaffolding Set (10 ft)",
+    description:
+      "Modular scaffolding set suitable for painting, plaster, and maintenance.",
+    category: "Construction",
+    pricePerDay: 900,
+    depositAmount: 4500,
+    available: true,
+    quantity: 2,
+    imageUrl: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Concrete Vibrator",
+    description:
+      "Electric concrete vibrator to remove air pockets and improve concrete strength.",
+    category: "Construction",
+    pricePerDay: 700,
+    depositAmount: 3500,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1497366216548-37526070297c?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Paint Sprayer",
+    description:
+      "Airless paint sprayer for faster wall and metal painting projects.",
+    category: "Construction",
+    pricePerDay: 600,
+    depositAmount: 3000,
+    available: true,
+    quantity: 3,
+    imageUrl:
+      "https://images.unsplash.com/photo-1495567720989-cebdbdd97913?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Wheelbarrow (Heavy Duty)",
+    description:
+      "Heavy-duty wheelbarrow for construction debris and material transport.",
+    category: "Construction",
+    pricePerDay: 180,
+    depositAmount: 900,
+    available: true,
+    quantity: 5,
+    imageUrl:
+      "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Tile Adhesive Mixer",
+    description: "Mixer drill attachment for tile adhesive and plaster mixing.",
+    category: "Construction",
+    pricePerDay: 240,
+    depositAmount: 1200,
+    available: true,
+    quantity: 4,
+    imageUrl:
+      "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Extension Cable Reel (30m)",
+    description: "Heavy-duty extension reel with thermal cut-off protection.",
+    category: "Electrical",
+    pricePerDay: 150,
+    depositAmount: 700,
+    available: true,
+    quantity: 6,
+    imageUrl:
+      "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Portable Inverter (1 KVA)",
+    description:
+      "Silent portable inverter for backup power during small events.",
+    category: "Electrical",
+    pricePerDay: 500,
+    depositAmount: 2400,
+    available: true,
+    quantity: 3,
+    imageUrl:
+      "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Site Work Light (LED Panel)",
+    description:
+      "Bright LED work light panel for indoor construction lighting.",
+    category: "Electrical",
+    pricePerDay: 260,
+    depositAmount: 1300,
+    available: true,
+    quantity: 4,
+    imageUrl:
+      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Power Distribution Box",
+    description:
+      "Portable power distribution box with multiple outlets for site equipment.",
+    category: "Electrical",
+    pricePerDay: 320,
+    depositAmount: 1600,
+    available: true,
+    quantity: 3,
+    imageUrl:
+      "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Carpet Cleaner",
+    description:
+      "Deep-cleaning carpet extractor suitable for offices and large rooms.",
+    category: "Cleaning Equipment",
+    pricePerDay: 650,
+    depositAmount: 3200,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Steam Cleaner",
+    description:
+      "High-pressure steam cleaner for sanitizing floors and surfaces.",
+    category: "Cleaning Equipment",
+    pricePerDay: 500,
+    depositAmount: 2500,
+    available: true,
+    quantity: 3,
+    imageUrl:
+      "https://images.unsplash.com/photo-1581574206700-7e8d9f3d5b33?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Leaf Blower",
+    description:
+      "Portable leaf blower for outdoor cleaning and garden maintenance.",
+    category: "Cleaning Equipment",
+    pricePerDay: 220,
+    depositAmount: 1100,
+    available: true,
+    quantity: 4,
+    imageUrl:
+      "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Floor Polisher",
+    description: "Heavy-duty floor polisher for marble and tiled surfaces.",
+    category: "Cleaning Equipment",
+    pricePerDay: 700,
+    depositAmount: 3400,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1496180727794-817822f65950?w=400",
+    condition: "Good",
+  },
 ];
 
 async function seed() {
   try {
     await mongoose.connect(MONGO_URI);
     console.log("Connected to MongoDB");
+
+    let adminUser = await User.findOne({ email: ADMIN_EMAIL });
+    if (!adminUser) {
+      adminUser = new User({
+        email: ADMIN_EMAIL,
+        password: ADMIN_PASSWORD,
+        name: "Admin",
+        role: "admin",
+      });
+    } else {
+      adminUser.name = adminUser.name || "Admin";
+      adminUser.role = "admin";
+      adminUser.password = ADMIN_PASSWORD;
+    }
+
+    await adminUser.save();
+    console.log("Admin user ready");
 
     await Item.deleteMany({});
     console.log("Cleared existing items");
