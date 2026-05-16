@@ -37,6 +37,8 @@ mongod
 ```bash
 cd backend
 npm install
+python3 -m venv ../.venv
+../.venv/bin/pip install -r nlp_chatbot/requirements.txt
 npm run seed    # Seeds 12 rental items into the database
 npm run dev     # Starts server on http://localhost:5000
 ```
@@ -66,16 +68,45 @@ npm start       # Starts React app on http://localhost:3000
 
 ## API Endpoints
 
-| Method | Endpoint          | Description         |
-| ------ | ----------------- | ------------------- |
-| GET    | `/api/items`      | Get all items       |
-| GET    | `/api/items/:id`  | Get item by ID      |
-| POST   | `/api/items`      | Create item         |
-| PUT    | `/api/items/:id`  | Update item         |
-| DELETE | `/api/items/:id`  | Delete item         |
-| GET    | `/api/orders`     | Get all orders      |
-| POST   | `/api/orders`     | Place an order      |
-| PUT    | `/api/orders/:id` | Update order status |
+| Method | Endpoint              | Description          |
+| ------ | --------------------- | -------------------- |
+| GET    | `/api/items`          | Get all items        |
+| GET    | `/api/items/:id`      | Get item by ID       |
+| POST   | `/api/items`          | Create item          |
+| PUT    | `/api/items/:id`      | Update item          |
+| DELETE | `/api/items/:id`      | Delete item          |
+| GET    | `/api/orders`         | Get all orders       |
+| POST   | `/api/orders`         | Place an order       |
+| PUT    | `/api/orders/:id`     | Update order status  |
+| POST   | `/api/chatbot/query`  | Query NLP chatbot    |
+| GET    | `/api/chatbot/health` | Chatbot health check |
+
+## NLP Chatbot Module (TF-IDF + Naive Bayes)
+
+The project includes a local NLP chatbot module implemented in Python + scikit-learn.
+
+### Architecture Pipeline
+
+1. Raw text input
+2. Preprocessing (lowercase, punctuation removal, stop-word removal)
+3. TF-IDF vectorization
+4. Multinomial Naive Bayes intent classification
+5. Structured JSON response (intent, confidence, suggestions, recommendations)
+
+### Why this module
+
+- Zero external NLP API cost
+- Local data privacy
+- Fast inference latency
+- Deterministic and explainable pipeline
+
+### Example chatbot request
+
+```bash
+curl -X POST http://localhost:5000/api/chatbot/query \\
+    -H "Content-Type: application/json" \\
+    -d '{"text":"I need a DSLR camera for 2 days"}'
+```
 
 ## Seeded Items
 

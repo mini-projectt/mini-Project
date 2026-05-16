@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import ItemCard from "../components/ItemCard";
 import { getItems } from "../api/api";
 
@@ -13,6 +14,7 @@ const CATEGORIES = [
 ];
 
 function Home() {
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -22,6 +24,16 @@ function Home() {
   useEffect(() => {
     fetchItems();
   }, []);
+
+  useEffect(() => {
+    const searchFromUrl = (searchParams.get("search") || "").trim();
+    const categoryFromUrl = (searchParams.get("category") || "All").trim();
+
+    setSearch(searchFromUrl);
+    setActiveCategory(
+      CATEGORIES.includes(categoryFromUrl) ? categoryFromUrl : "All",
+    );
+  }, [searchParams]);
 
   const fetchItems = async () => {
     try {
@@ -36,12 +48,14 @@ function Home() {
   };
 
   const filtered = items.filter((item) => {
+    const availableOnly = searchParams.get("available") === "true";
     const matchCat =
       activeCategory === "All" || item.category === activeCategory;
     const matchSearch =
       item.name.toLowerCase().includes(search.toLowerCase()) ||
       item.description.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
+    const matchAvailability = !availableOnly || item.available;
+    return matchCat && matchSearch && matchAvailability;
   });
 
   return (

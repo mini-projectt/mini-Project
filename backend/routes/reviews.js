@@ -15,7 +15,6 @@ router.get("/:itemId", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // POST add a review for an item
 router.post("/:itemId", authenticate, async (req, res) => {
   try {
@@ -31,9 +30,7 @@ router.post("/:itemId", authenticate, async (req, res) => {
       rating: Number(rating),
       comment,
     });
-
     await review.save();
-
     // Recompute averageRating and reviewCount on the item
     const allReviews = await Review.find({ item: req.params.itemId });
     const reviewCount = allReviews.length;

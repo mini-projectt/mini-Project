@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
-const PLACEHOLDER = "https://via.placeholder.com/400x200?text=No+Image";
+const PLACEHOLDER = "/images/ws.jpeg";
 
 export function StarRating({ rating, small }) {
   const full = Math.floor(rating);

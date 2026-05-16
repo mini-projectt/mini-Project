@@ -7,6 +7,8 @@ import ItemDetail from "./pages/ItemDetail";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import Orders from "./pages/Orders";
+import Chatbot from "./pages/Chatbot";
+import ChatbotWidget from "./components/Chatbot";
 import "./index.css";
 
 function App() {
@@ -18,12 +20,19 @@ function App() {
           <main className="main-content">
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/items" element={<Home />} />
+              <Route path="/rent" element={<Home />} />
+              <Route path="/return" element={<Orders />} />
+              <Route path="/report" element={<Orders />} />
+              <Route path="/status" element={<Orders />} />
               <Route path="/item/:id" element={<ItemDetail />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/chatbot" element={<Chatbot />} />
             </Routes>
           </main>
+          <ChatbotWidget />
           <footer className="footer">
             <div className="footer-inner">
               <p>© 2026 RentEase. All rights reserved.</p>

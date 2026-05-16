@@ -1,0 +1,181 @@
+{
+  "intents": [
+    {
+      "tag": "GREETING",
+      "patterns": [
+        "hello",
+        "hi",
+        "hey",
+        "good morning",
+        "good evening",
+        "can you help me"
+      ],
+      "response": "Hi! I can help you find rental items, prices, availability, and recommendations.",
+      "suggestions": [
+        "Show DSLR cameras",
+        "Suggest tools for home repair",
+        "I need a wedding outfit for 2 days"
+      ],
+      "recommendations": [
+        "DSLR Camera",
+        "Electric Drill",
+        "Wedding Sherwani"
+      ]
+    },
+    {
+      "tag": "SEARCH_ITEM",
+      "patterns": [
+        "show cameras",
+        "find camera",
+        "i need a dslr camera",
+        "search power tools",
+        "do you have pressure washer",
+        "show available ladders",
+        "find cleaning equipment"
+      ],
+      "response": "You can browse items by category and keyword from the home page.",
+      "suggestions": [
+        "Show DSLR camera options",
+        "Find tools under 1000",
+        "Show cleaning equipment"
+      ],
+      "recommendations": [
+        "DSLR Camera",
+        "Pressure Washer",
+        "Ladder"
+      ]
+    },
+    {
+      "tag": "RENT_ITEM",
+      "patterns": [
+        "i need a dslr camera for 2 days",
+        "rent a generator for 3 days",
+        "book electric drill for tomorrow",
+        "i want to rent wedding sherwani",
+        "how can i place order",
+        "rent item now"
+      ],
+      "response": "To rent an item, open the item detail page, choose rental dates, and place your order.",
+      "suggestions": [
+        "Show DSLR cameras",
+        "How much is security deposit",
+        "Track my order"
+      ],
+      "recommendations": [
+        "Generator",
+        "Electric Drill",
+        "Wedding Sherwani"
+      ]
+    },
+    {
+      "tag": "PRICE_INQUIRY",
+      "patterns": [
+        "what is the price",
+        "how much does camera cost",
+        "rental charges for drill",
+        "daily rent for generator",
+        "cost for 3 days rental",
+        "tell me price details"
+      ],
+      "response": "Prices are shown on each item card and detail page, including daily rate and security deposit.",
+      "suggestions": [
+        "Show DSLR camera price",
+        "Find budget items",
+        "What is deposit policy"
+      ],
+      "recommendations": [
+        "Electric Drill",
+        "Cement Mixer",
+        "Business Suit"
+      ]
+    },
+    {
+      "tag": "AVAILABILITY",
+      "patterns": [
+        "is it available",
+        "check availability",
+        "available for next weekend",
+        "is camera in stock",
+        "can i book today",
+        "which items are available"
+      ],
+      "response": "Availability is updated in real-time on each item page before checkout.",
+      "suggestions": [
+        "Show available cameras",
+        "Find available tools",
+        "Show items ready today"
+      ],
+      "recommendations": [
+        "Rotary Hammer",
+        "Submersible Pump",
+        "Pressure Washer"
+      ]
+    },
+    {
+      "tag": "RECOMMENDATION",
+      "patterns": [
+        "recommend something for photography",
+        "suggest tools for home repair",
+        "best items for construction work",
+        "what should i rent for wedding",
+        "recommend cleaning equipment",
+        "give me suggestions"
+      ],
+      "response": "Based on your request, I can suggest the most relevant rental items and alternatives.",
+      "suggestions": [
+        "Recommend photography kit",
+        "Suggest wedding outfit",
+        "Suggest heavy-duty tools"
+      ],
+      "recommendations": [
+        "DSLR Camera",
+        "Wedding Sherwani",
+        "Rotary Hammer"
+      ]
+    },
+    {
+      "tag": "ORDER_STATUS",
+      "patterns": [
+        "track my order",
+        "where is my order",
+        "order status",
+        "when will i get delivery",
+        "check my booking",
+        "my rental status"
+      ],
+      "response": "You can check your latest booking status in the My Orders section.",
+      "suggestions": [
+        "Open my orders",
+        "Show active rentals",
+        "How to cancel order"
+      ],
+      "recommendations": [
+        "My Orders page",
+        "Support contact",
+        "Order details"
+      ]
+    },
+    {
+      "tag": "GOODBYE",
+      "patterns": [
+        "bye",
+        "thanks",
+        "thank you",
+        "see you",
+        "that is all",
+        "done"
+      ],
+      "response": "Happy to help. Come back anytime for rental suggestions and booking support.",
+      "suggestions": [
+        "Browse items",
+        "Check latest offers",
+        "Open orders"
+      ],
+      "recommendations": [
+        "Top rated cameras",
+        "Popular tools",
+        "Wedding collection"
+      ]
+    }
+  ]
+}

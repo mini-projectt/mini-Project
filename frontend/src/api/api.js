@@ -56,4 +56,7 @@ export const getReviews = (itemId) => API.get(`/reviews/${itemId}`);
 export const createReview = (itemId, data) =>
   API.post(`/reviews/${itemId}`, data);
 
+// NLP Chatbot
+export const queryChatbot = (text) => API.post("/chatbot/query", { text });
+
 export default API;

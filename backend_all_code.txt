@@ -1,0 +1,2092 @@
+BACKEND SOURCE DUMP
+
+============================================================
+FILE: backend/.env
+============================================================
+MONGO_URI=mongodb://localhost:27017/rentalapp
+PORT=5001
+JWT_SECRET=a8f5e2c9b4d7a1e3f6c8b9d2a5e7f1c4b8d9e2a5f7c1b4d8e9a2f5c7b1d4e8a9
+
+============================================================
+FILE: backend/.gitignore
+============================================================
+node_modules/
+============================================================
+FILE: backend/middleware/auth.js
+============================================================
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
+
+// Middleware to verify JWT token and authenticate user
+const authenticate = async (req, res, next) => {
+  try {
+    // Get token from Authorization header
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Get user from database (exclude password)
+    const user = await User.findById(decoded.userId).select("-password");
+
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    // Attach user to request
+    req.user = user;
+    next();
+  } catch (error) {
+    if (error.name === "JsonWebTokenError") {
+      return res.status(401).json({ message: "Invalid token" });
+    }
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Token expired" });
+    }
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
+  }
+};
+
+// Middleware to check user role
+const authorizeRole = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        message:
+          "Forbidden: You do not have permission to access this resource",
+      });
+    }
+
+    next();
+  };
+};
+
+module.exports = { authenticate, authorizeRole };
+
+============================================================
+FILE: backend/models/Item.js
+============================================================
+const mongoose = require("mongoose");
+
+const itemSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    description: { type: String, required: true },
+    category: { type: String, required: true },
+    pricePerDay: { type: Number, required: true },
+    depositAmount: { type: Number, default: 0 },
+    available: { type: Boolean, default: true },
+    quantity: { type: Number, default: 1 },
+    imageUrl: { type: String, default: "" },
+    imagePosition: { type: String, default: "center" },
+    averageRating: { type: Number, default: 0 },
+    reviewCount: { type: Number, default: 0 },
+    condition: {
+      type: String,
+      enum: ["Excellent", "Good", "Fair"],
+      default: "Good",
+    },
+  },
+  { timestamps: true },
+);
+
+module.exports = mongoose.model("Item", itemSchema);
+
+============================================================
+FILE: backend/models/Order.js
+============================================================
+const mongoose = require("mongoose");
+
+const orderSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    customerName: { type: String, required: true, trim: true },
+    customerEmail: { type: String, required: true, trim: true },
+    customerPhone: { type: String, required: true, trim: true },
+    item: { type: mongoose.Schema.Types.ObjectId, ref: "Item", required: true },
+    itemName: { type: String, required: true },
+    rentalDays: { type: Number, required: true, min: 1 },
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+    totalAmount: { type: Number, required: true },
+    depositAmount: { type: Number, default: 0 },
+    status: {
+      type: String,
+      enum: ["Pending", "Confirmed", "Returned", "Cancelled"],
+      default: "Pending",
+    },
+  },
+  { timestamps: true },
+);
+
+module.exports = mongoose.model("Order", orderSchema);
+
+============================================================
+FILE: backend/models/Review.js
+============================================================
+const mongoose = require("mongoose");
+
+const reviewSchema = new mongoose.Schema(
+  {
+    item: { type: mongoose.Schema.Types.ObjectId, ref: "Item", required: true },
+    reviewerName: { type: String, required: true, trim: true },
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    comment: { type: String, trim: true, default: "" },
+  },
+  { timestamps: true },
+);
+
+module.exports = mongoose.model("Review", reviewSchema);
+
+============================================================
+FILE: backend/models/User.js
+============================================================
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+
+const userSchema = new mongoose.Schema(
+  {
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      lowercase: true,
+    },
+    password: { type: String, required: true },
+    name: { type: String, required: true, trim: true },
+    role: {
+      type: String,
+      enum: ["customer", "admin"],
+      default: "customer",
+    },
+    phone: { type: String, trim: true },
+  },
+  { timestamps: true },
+);
+
+// Hash password before saving
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
+    return next();
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+// Method to compare passwords
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+
+module.exports = mongoose.model("User", userSchema);
+
+============================================================
+FILE: backend/nlp/nlp_service.py
+============================================================
+import json
+import re
+import string
+import sys
+from typing import Dict, List
+
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS, TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+
+INTENT_TRAINING_DATA: Dict[str, List[str]] = {
+    "RENT_SEARCH": [
+        "show me rental cameras",
+        "find bikes for rent",
+        "search for power tools to rent",
+        "what items are available for rental",
+        "i need to browse rental products",
+        "find equipment near me",
+        "show available generators",
+        "list all rental items",
+        "what can i rent today",
+        "search rental options in my area",
+        "suggest tools for home repair",
+        "recommend tools for home maintenance",
+        "suggest heavy duty tools",
+        "show me power tools for rent",
+        "find repair tools on rent",
+        "recommend construction equipment to rent",
+        "show rental tools near me",
+        "i want suggestions for rental tools",
+    ],
+    "RENT_ITEM": [
+        "i want to rent this camera",
+        "book the drill for 3 days",
+        "rent this bike now",
+        "i need this item for 2 weeks",
+        "help me complete booking",
+        "reserve this generator",
+        "can i rent this product",
+        "start my rental order",
+        "i want to proceed with rent",
+        "take me to booking page",
+    ],
+    "RETURN_ITEM": [
+        "i want to return my rented item",
+        "start return process",
+        "how do i return the camera",
+        "schedule pickup for return",
+        "i need to give back this product",
+        "open return form",
+        "return my rental today",
+        "help me submit return request",
+        "take me to return page",
+        "i am done using the item",
+    ],
+    "REPORT_DAMAGE": [
+        "the item is damaged",
+        "i want to report damage",
+        "camera lens got cracked",
+        "the tool is broken",
+        "file a damage complaint",
+        "report an issue with rented item",
+        "product came with scratches",
+        "open damage report form",
+        "i need to report a fault",
+        "there is physical damage on item",
+    ],
+    "CHECK_STATUS": [
+        "check my rental status",
+        "where is my order",
+        "track my rental",
+        "what is my booking status",
+        "has my request been approved",
+        "show current order progress",
+        "is my item delivered",
+        "status of my return request",
+        "tell me order update",
+        "check status of my rental",
+    ],
+}
+
+STOP_WORDS = set(ENGLISH_STOP_WORDS)
+
+
+def preprocess_text(text: str) -> str:
+    lowered = text.lower()
+    no_punct = lowered.translate(str.maketrans("", "", string.punctuation))
+    tokens = [token for token in no_punct.split() if token and token not in STOP_WORDS]
+    return " ".join(tokens)
+
+
+def extract_entities(text: str) -> Dict[str, str]:
+    duration_match = re.search(r"\b(\d+\s*(?:day|days|week|weeks|month|months))\b", text, re.IGNORECASE)
+    location_match = re.search(r"\bnear\s+([A-Za-z][A-Za-z\s]{1,40})\b", text, re.IGNORECASE)
+
+    duration = duration_match.group(1).strip() if duration_match else None
+    location = None
+    if location_match:
+        location = f"near {location_match.group(1).strip()}"
+
+    return {
+        "duration": duration,
+        "location": location,
+    }
+
+
+def train_classifier():
+    train_texts: List[str] = []
+    labels: List[str] = []
+
+    for intent, phrases in INTENT_TRAINING_DATA.items():
+        for phrase in phrases:
+            train_texts.append(preprocess_text(phrase))
+            labels.append(intent)
+
+    vectorizer = TfidfVectorizer(ngram_range=(1, 2), min_df=1)
+    features = vectorizer.fit_transform(train_texts)
+
+    classifier = MultinomialNB(alpha=0.25)
+    classifier.fit(features, labels)
+
+    return vectorizer, classifier
+
+
+def classify_message(message: str) -> Dict:
+    vectorizer, classifier = train_classifier()
+    clean_input = preprocess_text(message)
+
+    if not clean_input:
+        return {
+            "intent": "UNKNOWN",
+            "confidence": 0.0,
+            "entities": extract_entities(message),
+            "fallback": True,
+        }
+
+    vector = vectorizer.transform([clean_input])
+    probabilities = classifier.predict_proba(vector)[0]
+    classes = classifier.classes_
+
+    best_index = probabilities.argmax()
+    confidence = float(probabilities[best_index])
+    intent = classes[best_index]
+
+    return {
+        "intent": intent,
+        "confidence": round(confidence, 4),
+        "entities": extract_entities(message),
+        "fallback": confidence < 0.45,
+    }
+
+
+def main():
+    try:
+        message = sys.stdin.read().strip()
+        if not message:
+            print(
+                json.dumps(
+                    {
+                        "intent": "UNKNOWN",
+                        "confidence": 0.0,
+                        "entities": {"duration": None, "location": None},
+                        "fallback": True,
+                    }
+                )
+            )
+            return
+
+        output = classify_message(message)
+        print(json.dumps(output))
+    except Exception:
+        print(
+            json.dumps(
+                {
+                    "intent": "UNKNOWN",
+                    "confidence": 0.0,
+                    "entities": {"duration": None, "location": None},
+                    "fallback": True,
+                }
+            )
+        )
+
+
+if __name__ == "__main__":
+    main()
+
+============================================================
+FILE: backend/nlp_chatbot/chatbot.py
+============================================================
+import json
+import os
+import re
+import sys
+import time
+from dataclasses import dataclass
+from typing import Dict, List
+
+import joblib
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS, TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.pipeline import Pipeline
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INTENTS_PATH = os.path.join(BASE_DIR, "intents.json")
+MODEL_PATH = os.path.join(BASE_DIR, "model.joblib")
+
+STOP_WORDS = set(ENGLISH_STOP_WORDS)
+
+
+@dataclass
+class IntentMeta:
+    response: str
+    suggestions: List[str]
+    recommendations: List[str]
+
+
+def preprocess_text(text: str) -> str:
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    tokens = [token for token in text.split() if token and token not in STOP_WORDS]
+    return " ".join(tokens)
+
+
+def load_intents(path: str = INTENTS_PATH) -> Dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def build_training_data(intents_payload: Dict):
+    texts = []
+    labels = []
+    meta = {}
+
+    for intent in intents_payload.get("intents", []):
+        tag = intent["tag"]
+        meta[tag] = IntentMeta(
+            response=intent.get("response", ""),
+            suggestions=intent.get("suggestions", []),
+            recommendations=intent.get("recommendations", []),
+        )
+
+        for pattern in intent.get("patterns", []):
+            normalized = preprocess_text(pattern)
+            if normalized:
+                texts.append(normalized)
+                labels.append(tag)
+
+    return texts, labels, meta
+
+
+def train_and_save_model(model_path: str = MODEL_PATH):
+    intents_payload = load_intents()
+    texts, labels, meta = build_training_data(intents_payload)
+
+    pipeline = Pipeline(
+        steps=[
+            (
+                "tfidf",
+                TfidfVectorizer(
+                    ngram_range=(1, 2),
+                    min_df=1,
+                    max_df=0.95,
+                    sublinear_tf=True,
+                ),
+            ),
+            ("clf", MultinomialNB(alpha=0.2)),
+        ]
+    )
+
+    pipeline.fit(texts, labels)
+
+    artifact = {
+        "pipeline": pipeline,
+        "meta": {
+            tag: {
+                "response": data.response,
+                "suggestions": data.suggestions,
+                "recommendations": data.recommendations,
+            }
+            for tag, data in meta.items()
+        },
+    }
+
+    joblib.dump(artifact, model_path)
+    return artifact
+
+
+def load_or_train_model(model_path: str = MODEL_PATH):
+    if os.path.exists(model_path):
+        return joblib.load(model_path)
+    return train_and_save_model(model_path)
+
+
+def predict(query: str, artifact=None):
+    started = time.perf_counter()
+    artifact = artifact or load_or_train_model()
+
+    pipeline = artifact["pipeline"]
+    meta = artifact["meta"]
+
+    processed = preprocess_text(query)
+    if not processed:
+        return {
+            "intent": "UNKNOWN",
+            "confidence": 0.0,
+            "response": "Please enter a clearer query. I can help with item search, rental, and recommendations.",
+            "suggestions": [
+                "Show DSLR cameras",
+                "Suggest tools for construction",
+                "I need a suit for 2 days",
+            ],
+            "recommendations": ["DSLR Camera", "Electric Drill", "Business Suit"],
+            "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            "pipeline": {
+                "processed_text": processed,
+                "stages": ["preprocess", "tfidf", "multinomial_nb"],
+            },
+        }
+
+    probs = pipeline.predict_proba([processed])[0]
+    classes = pipeline.classes_
+    best_idx = probs.argmax()
+
+    intent = classes[best_idx]
+    confidence = float(probs[best_idx])
+
+    if confidence < 0.4:
+        intent = "FALLBACK"
+        response = "I could not confidently classify that request. Try asking for item search, prices, availability, or recommendations."
+        suggestions = [
+            "Show available cameras",
+            "Suggest wedding rental items",
+            "How to place an order",
+        ]
+        recommendations = ["DSLR Camera", "Wedding Sherwani", "Generator"]
+    else:
+        intent_meta = meta.get(intent, {})
+        response = intent_meta.get("response", "I can help with rentals and recommendations.")
+        suggestions = intent_meta.get("suggestions", [])
+        recommendations = intent_meta.get("recommendations", [])
+
+    return {
+        "intent": intent,
+        "confidence": round(confidence, 4),
+        "response": response,
+        "suggestions": suggestions,
+        "recommendations": recommendations,
+        "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+        "pipeline": {
+            "processed_text": processed,
+            "stages": ["preprocess", "tfidf", "multinomial_nb"],
+        },
+    }
+
+
+def cli():
+    if len(sys.argv) < 2:
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "Usage: python chatbot.py '<query text>'",
+                }
+            )
+        )
+        sys.exit(1)
+
+    query = " ".join(sys.argv[1:])
+
+    try:
+        artifact = load_or_train_model()
+        output = predict(query, artifact)
+        print(json.dumps({"ok": True, "result": output}))
+    except Exception as exc:  # pragma: no cover
+        print(json.dumps({"ok": False, "error": str(exc)}))
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    cli()
+
+============================================================
+FILE: backend/nlp_chatbot/intents.json
+============================================================
+{
+  "intents": [
+    {
+      "tag": "GREETING",
+      "patterns": [
+        "hello",
+        "hi",
+        "hey",
+        "good morning",
+        "good evening",
+        "can you help me"
+      ],
+      "response": "Hi! I can help you find rental items, prices, availability, and recommendations.",
+      "suggestions": [
+        "Show DSLR cameras",
+        "Suggest tools for home repair",
+        "I need a wedding outfit for 2 days"
+      ],
+      "recommendations": [
+        "DSLR Camera",
+        "Electric Drill",
+        "Wedding Sherwani"
+      ]
+    },
+    {
+      "tag": "SEARCH_ITEM",
+      "patterns": [
+        "show cameras",
+        "find camera",
+        "i need a dslr camera",
+        "search power tools",
+        "do you have pressure washer",
+        "show available ladders",
+        "find cleaning equipment"
+      ],
+      "response": "You can browse items by category and keyword from the home page.",
+      "suggestions": [
+        "Show DSLR camera options",
+        "Find tools under 1000",
+        "Show cleaning equipment"
+      ],
+      "recommendations": [
+        "DSLR Camera",
+        "Pressure Washer",
+        "Ladder"
+      ]
+    },
+    {
+      "tag": "RENT_ITEM",
+      "patterns": [
+        "i need a dslr camera for 2 days",
+        "rent a generator for 3 days",
+        "book electric drill for tomorrow",
+        "i want to rent wedding sherwani",
+        "how can i place order",
+        "rent item now"
+      ],
+      "response": "To rent an item, open the item detail page, choose rental dates, and place your order.",
+      "suggestions": [
+        "Show DSLR cameras",
+        "How much is security deposit",
+        "Track my order"
+      ],
+      "recommendations": [
+        "Generator",
+        "Electric Drill",
+        "Wedding Sherwani"
+      ]
+    },
+    {
+      "tag": "PRICE_INQUIRY",
+      "patterns": [
+        "what is the price",
+        "how much does camera cost",
+        "rental charges for drill",
+        "daily rent for generator",
+        "cost for 3 days rental",
+        "tell me price details"
+      ],
+      "response": "Prices are shown on each item card and detail page, including daily rate and security deposit.",
+      "suggestions": [
+        "Show DSLR camera price",
+        "Find budget items",
+        "What is deposit policy"
+      ],
+      "recommendations": [
+        "Electric Drill",
+        "Cement Mixer",
+        "Business Suit"
+      ]
+    },
+    {
+      "tag": "AVAILABILITY",
+      "patterns": [
+        "is it available",
+        "check availability",
+        "available for next weekend",
+        "is camera in stock",
+        "can i book today",
+        "which items are available"
+      ],
+      "response": "Availability is updated in real-time on each item page before checkout.",
+      "suggestions": [
+        "Show available cameras",
+        "Find available tools",
+        "Show items ready today"
+      ],
+      "recommendations": [
+        "Rotary Hammer",
+        "Submersible Pump",
+        "Pressure Washer"
+      ]
+    },
+    {
+      "tag": "RECOMMENDATION",
+      "patterns": [
+        "recommend something for photography",
+        "suggest tools for home repair",
+        "best items for construction work",
+        "what should i rent for wedding",
+        "recommend cleaning equipment",
+        "give me suggestions"
+      ],
+      "response": "Based on your request, I can suggest the most relevant rental items and alternatives.",
+      "suggestions": [
+        "Recommend photography kit",
+        "Suggest wedding outfit",
+        "Suggest heavy-duty tools"
+      ],
+      "recommendations": [
+        "DSLR Camera",
+        "Wedding Sherwani",
+        "Rotary Hammer"
+      ]
+    },
+    {
+      "tag": "ORDER_STATUS",
+      "patterns": [
+        "track my order",
+        "where is my order",
+        "order status",
+        "when will i get delivery",
+        "check my booking",
+        "my rental status"
+      ],
+      "response": "You can check your latest booking status in the My Orders section.",
+      "suggestions": [
+        "Open my orders",
+        "Show active rentals",
+        "How to cancel order"
+      ],
+      "recommendations": [
+        "My Orders page",
+        "Support contact",
+        "Order details"
+      ]
+    },
+    {
+      "tag": "GOODBYE",
+      "patterns": [
+        "bye",
+        "thanks",
+        "thank you",
+        "see you",
+        "that is all",
+        "done"
+      ],
+      "response": "Happy to help. Come back anytime for rental suggestions and booking support.",
+      "suggestions": [
+        "Browse items",
+        "Check latest offers",
+        "Open orders"
+      ],
+      "recommendations": [
+        "Top rated cameras",
+        "Popular tools",
+        "Wedding collection"
+      ]
+    }
+  ]
+}
+
+============================================================
+FILE: backend/nlp_chatbot/requirements.txt
+============================================================
+scikit-learn==1.5.2
+numpy==2.1.3
+joblib==1.4.2
+
+============================================================
+FILE: backend/package.json
+============================================================
+{
+  "name": "rental-app-backend",
+  "version": "1.0.0",
+  "description": "Rental App Backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
+
+============================================================
+FILE: backend/routes/auth.js
+============================================================
+const express = require("express");
+const router = express.Router();
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
+const { authenticate } = require("../middleware/auth");
+
+// Helper function to generate JWT token
+const generateToken = (userId) => {
+  return jwt.sign({ userId }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
+  });
+};
+
+// POST register new user
+router.post("/register", async (req, res) => {
+  try {
+    const { email, password, name, phone } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email already registered" });
+    }
+
+    // Create new user (password will be hashed by pre-save hook)
+    const user = new User({
+      email,
+      password,
+      name,
+      phone,
+    });
+
+    await user.save();
+
+    // Generate token
+    const token = generateToken(user._id);
+
+    // Return user data without password
+    res.status(201).json({
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+      },
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST login
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    // Compare password
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    // Generate token
+    const token = generateToken(user._id);
+
+    // Return user data without password
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET current user (requires authentication)
+router.get("/me", authenticate, async (req, res) => {
+  try {
+    res.json({
+      user: {
+        id: req.user._id,
+        email: req.user.email,
+        name: req.user.name,
+        role: req.user.role,
+        phone: req.user.phone,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
+
+============================================================
+FILE: backend/routes/chatbot.js
+============================================================
+const express = require("express");
+const path = require("path");
+const fs = require("fs");
+const { spawn } = require("child_process");
+const Item = require("../models/Item");
+
+const router = express.Router();
+const localVenvPython = path.join(__dirname, "../../.venv/bin/python");
+const PYTHON_BIN =
+  process.env.PYTHON_BIN ||
+  (fs.existsSync(localVenvPython) ? localVenvPython : "python3");
+const CHATBOT_SCRIPT = path.join(__dirname, "../nlp_chatbot/chatbot.py");
+
+function parseBudgetQuery(text) {
+  const normalized = text.toLowerCase();
+  const budgetMatch = normalized.match(
+    /(?:under|below|less than|upto|up to)\s*(?:rs\.?|inr|₹)?\s*(\d+)/i,
+  );
+
+  if (!budgetMatch) {
+    return null;
+  }
+
+  const maxPrice = Number(budgetMatch[1]);
+  if (!Number.isFinite(maxPrice) || maxPrice <= 0) {
+    return null;
+  }
+
+  let domain = "item";
+  if (/tool|tools|drill|grinder|hammer/i.test(normalized)) {
+    domain = "tool";
+  } else if (/camera|dslr|photography/i.test(normalized)) {
+    domain = "camera";
+  } else if (/pump|water pump/i.test(normalized)) {
+    domain = "pump";
+  }
+
+  return { maxPrice, domain };
+}
+
+function normalizeText(text) {
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+}
+
+function buildItemFilterFromQuery(text) {
+  const normalized = normalizeText(text);
+
+  const hasToolTerms =
+    /tool|tools|drill|grinder|hammer|repair|heavy duty|heavy-duty|construction|fix|maintenance/i.test(
+      normalized,
+    );
+  const hasCleaningTerms = /clean|cleaning|washer|pressure/i.test(normalized);
+  const hasPumpTerms = /pump|water pump|irrigation/i.test(normalized);
+
+  const clauses = [];
+
+  if (hasToolTerms) {
+    clauses.push(
+      { category: { $regex: /power tools|construction|cleaning equipment/i } },
+      { name: { $regex: /drill|grinder|hammer|ladder|mixer/i } },
+      {
+        description: {
+          $regex: /drill|grinder|hammer|ladder|mixer|repair|construction/i,
+        },
+      },
+    );
+  }
+
+  if (hasCleaningTerms) {
+    clauses.push(
+      { category: { $regex: /cleaning equipment|construction/i } },
+      { name: { $regex: /washer|cleaning|pressure|ladder/i } },
+      { description: { $regex: /washer|cleaning|pressure|ladder/i } },
+    );
+  }
+
+  if (hasPumpTerms) {
+    clauses.push(
+      { category: { $regex: /pumps/i } },
+      { name: { $regex: /pump/i } },
+      { description: { $regex: /pump|water/i } },
+    );
+  }
+
+  if (clauses.length === 0) {
+    return null;
+  }
+
+  return {
+    available: true,
+    $or: clauses,
+  };
+}
+
+async function getBudgetItems(parsedQuery) {
+  if (!parsedQuery) {
+    return [];
+  }
+
+  const { maxPrice, domain } = parsedQuery;
+  const filter = {
+    available: true,
+    pricePerDay: { $lte: maxPrice },
+  };
+
+  if (domain === "tool") {
+    filter.$or = [
+      { category: { $regex: /power tools|construction|cleaning equipment/i } },
+      { name: { $regex: /tool|drill|grinder|hammer/i } },
+      { description: { $regex: /tool|drill|grinder|hammer/i } },
+    ];
+  } else if (domain === "camera") {
+    filter.$or = [
+      { category: { $regex: /camera|photography/i } },
+      { name: { $regex: /camera|dslr/i } },
+      { description: { $regex: /camera|dslr/i } },
+    ];
+  } else if (domain === "pump") {
+    filter.$or = [
+      { category: { $regex: /pump/i } },
+      { name: { $regex: /pump/i } },
+      { description: { $regex: /pump/i } },
+    ];
+  }
+
+  const items = await Item.find(filter)
+    .sort({ pricePerDay: 1 })
+    .limit(6)
+    .select("name category pricePerDay available imageUrl");
+
+  return items.map((item) => ({
+    _id: item._id,
+    name: item.name,
+    category: item.category,
+    pricePerDay: item.pricePerDay,
+    available: item.available,
+    imageUrl: item.imageUrl,
+  }));
+}
+
+async function getMatchedItems(text, intent) {
+  const budgetItems = await getBudgetItems(parseBudgetQuery(text));
+  if (budgetItems.length > 0) {
+    return budgetItems;
+  }
+
+  const searchIntent =
+    /SEARCH_ITEM|RECOMMENDATION|RENT_ITEM|PRICE_INQUIRY|AVAILABILITY/.test(
+      intent || "",
+    );
+
+  if (!searchIntent) {
+    return [];
+  }
+
+  const filter = buildItemFilterFromQuery(text);
+  if (!filter) {
+    return [];
+  }
+
+  const items = await Item.find(filter)
+    .sort({ pricePerDay: 1 })
+    .limit(6)
+    .select("name category pricePerDay available imageUrl");
+
+  return items.map((item) => ({
+    _id: item._id,
+    name: item.name,
+    category: item.category,
+    pricePerDay: item.pricePerDay,
+    available: item.available,
+    imageUrl: item.imageUrl,
+  }));
+}
+
+function runInference(query) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(PYTHON_BIN, [CHATBOT_SCRIPT, query], {
+      cwd: path.join(__dirname, ".."),
+      env: process.env,
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("close", (code) => {
+      if (code !== 0) {
+        return reject(
+          new Error(
+            `Chatbot inference failed with code ${code}. ${stderr || stdout}`,
+          ),
+        );
+      }
+
+      try {
+        const parsed = JSON.parse(stdout);
+        if (!parsed.ok) {
+          return reject(new Error(parsed.error || "Inference returned error"));
+        }
+        return resolve(parsed.result);
+      } catch (err) {
+        return reject(new Error(`Invalid chatbot output: ${stdout}`));
+      }
+    });
+
+    child.on("error", (err) => {
+      reject(new Error(`Failed to start Python process: ${err.message}`));
+    });
+  });
+}
+
+router.post("/query", async (req, res) => {
+  try {
+    const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+
+    if (!text) {
+      return res.status(400).json({
+        message: "text is required",
+      });
+    }
+
+    const result = await runInference(text);
+    const matchedItems = await getMatchedItems(text, result.intent);
+
+    if (matchedItems.length > 0) {
+      const suffix =
+        matchedItems.length === 1
+          ? "I found 1 matching item for your request."
+          : `I found ${matchedItems.length} matching items for your request.`;
+      result.response = `${result.response} ${suffix}`;
+    }
+
+    return res.json({
+      ok: true,
+      ...result,
+      matchedItems,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Chatbot query failed",
+      error: error.message,
+    });
+  }
+});
+
+router.get("/health", (_req, res) => {
+  res.json({
+    ok: true,
+    model: "TF-IDF + MultinomialNB",
+    localOnly: true,
+  });
+});
+
+module.exports = router;
+
+============================================================
+FILE: backend/routes/chatbot.route.js
+============================================================
+const express = require("express");
+const { authenticate } = require("../middleware/auth");
+const { classifyIntent } = require("../services/nlpService");
+
+const router = express.Router();
+
+const SEARCH_CATEGORY_RULES = [
+  {
+    category: "Electrical",
+    terms: [
+      "generator",
+      "electrical",
+      "inverter",
+      "flood light",
+      "light tower",
+    ],
+  },
+  {
+    category: "Power Tools",
+    terms: [
+      "tool",
+      "tools",
+      "drill",
+      "grinder",
+      "hammer",
+      "impact",
+      "compressor",
+      "repair",
+      "maintenance",
+    ],
+  },
+  {
+    category: "Pumps",
+    terms: [
+      "pump",
+      "pumps",
+      "submersible",
+      "centrifugal",
+      "irrigation",
+      "dewatering",
+    ],
+  },
+  {
+    category: "Cleaning Equipment",
+    terms: [
+      "clean",
+      "cleaning",
+      "washer",
+      "vacuum",
+      "scrubber",
+      "pressure washer",
+    ],
+  },
+  {
+    category: "Construction",
+    terms: ["construction", "cement", "mixer", "ladder", "tile", "laser level"],
+  },
+  {
+    category: "Clothing",
+    terms: ["clothing", "suit", "sherwani", "lehenga", "wedding"],
+  },
+];
+
+const SEARCH_KEYWORDS = [
+  "generator",
+  "drill",
+  "grinder",
+  "hammer",
+  "compressor",
+  "welding",
+  "pump",
+  "washer",
+  "vacuum",
+  "scrubber",
+  "ladder",
+  "mixer",
+  "suit",
+  "sherwani",
+  "lehenga",
+  "tool",
+];
+
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeMessage(message) {
+  return message
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasTerm(normalizedText, term) {
+  const escaped = escapeRegex(term.toLowerCase());
+  const pattern = term.includes(" ")
+    ? new RegExp(`\\b${escaped}\\b`, "i")
+    : new RegExp(`\\b${escaped}s?\\b`, "i");
+  return pattern.test(normalizedText);
+}
+
+function detectCategory(normalizedText) {
+  for (const rule of SEARCH_CATEGORY_RULES) {
+    if (rule.terms.some((term) => hasTerm(normalizedText, term))) {
+      return rule.category;
+    }
+  }
+  return null;
+}
+
+function detectKeyword(normalizedText) {
+  for (const keyword of SEARCH_KEYWORDS) {
+    if (hasTerm(normalizedText, keyword)) {
+      return keyword;
+    }
+  }
+  return null;
+}
+
+function buildItemsRedirect(message) {
+  const normalized = normalizeMessage(message || "");
+  const category = detectCategory(normalized);
+  const keyword = detectKeyword(normalized);
+  const params = new URLSearchParams();
+
+  if (category) {
+    params.set("category", category);
+  }
+  if (keyword) {
+    params.set("search", keyword);
+  }
+  params.set("available", "true");
+
+  const query = params.toString();
+  return query ? `/items?${query}` : "/items";
+}
+
+function buildRentRedirect(message) {
+  const normalized = normalizeMessage(message || "");
+  const keyword = detectKeyword(normalized);
+
+  if (!keyword) {
+    return "/rent";
+  }
+
+  const params = new URLSearchParams({
+    search: keyword,
+    available: "true",
+  });
+
+  return `/rent?${params.toString()}`;
+}
+
+const intentResponseMap = {
+  RENT_SEARCH: {
+    response: "Searching for rentals...",
+    redirect: "/items",
+  },
+  RENT_ITEM: {
+    response: "Taking you to booking...",
+    redirect: "/rent",
+  },
+  RETURN_ITEM: {
+    response: "Opening return process...",
+    redirect: "/return",
+  },
+  REPORT_DAMAGE: {
+    response: "Opening damage report...",
+    redirect: "/report",
+  },
+  CHECK_STATUS: {
+    response: "Checking your rental status...",
+    redirect: "/status",
+  },
+};
+
+router.post("/chat", authenticate, async (req, res) => {
+  const startedAt = Date.now();
+
+  try {
+    const message =
+      typeof req.body?.message === "string" ? req.body.message.trim() : "";
+
+    if (!message) {
+      return res.status(400).json({
+        error: "message is required",
+      });
+    }
+
+    const result = await classifyIntent(message);
+
+    if (result.fallback) {
+      return res.json({
+        intent: result.intent || "UNKNOWN",
+        confidence: result.confidence || 0,
+        entities: result.entities || { duration: null, location: null },
+        response:
+          "I didn't understand. Try: rent a camera, return item, report damage",
+        redirect: null,
+        latency: Date.now() - startedAt,
+      });
+    }
+
+    const mapped = intentResponseMap[result.intent] || {
+      response:
+        "I didn't understand. Try: rent a camera, return item, report damage",
+      redirect: null,
+    };
+
+    let redirect = mapped.redirect || null;
+    if (result.intent === "RENT_SEARCH") {
+      redirect = buildItemsRedirect(message);
+    }
+    if (result.intent === "RENT_ITEM") {
+      redirect = buildRentRedirect(message);
+    }
+
+    return res.json({
+      intent: result.intent || "UNKNOWN",
+      confidence: result.confidence || 0,
+      entities: result.entities || { duration: null, location: null },
+      response: mapped.response,
+      redirect,
+      latency: Date.now() - startedAt,
+    });
+  } catch (error) {
+    return res.json({
+      intent: "UNKNOWN",
+      confidence: 0,
+      entities: { duration: null, location: null },
+      response:
+        "I didn't understand. Try: rent a camera, return item, report damage",
+      redirect: null,
+      latency: Date.now() - startedAt,
+    });
+  }
+});
+
+module.exports = router;
+
+============================================================
+FILE: backend/routes/items.js
+============================================================
+const express = require("express");
+const router = express.Router();
+const Item = require("../models/Item");
+const { authenticate, authorizeRole } = require("../middleware/auth");
+
+// GET all items
+router.get("/", async (req, res) => {
+  try {
+    const { category, available } = req.query;
+    const filter = {};
+    if (category) filter.category = category;
+    if (available !== undefined) filter.available = available === "true";
+
+    const items = await Item.find(filter).sort({ createdAt: -1 });
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET single item
+router.get("/:id", async (req, res) => {
+  try {
+    const item = await Item.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Item not found" });
+    res.json(item);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create item (admin)
+router.post("/", authenticate, authorizeRole("admin"), async (req, res) => {
+  try {
+    const item = new Item(req.body);
+    const saved = await item.save();
+    res.status(201).json(saved);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// PUT update item (admin)
+router.put("/:id", authenticate, authorizeRole("admin"), async (req, res) => {
+  try {
+    const item = await Item.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!item) return res.status(404).json({ error: "Item not found" });
+    res.json(item);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// DELETE item (admin)
+router.delete(
+  "/:id",
+  authenticate,
+  authorizeRole("admin"),
+  async (req, res) => {
+    try {
+      const item = await Item.findByIdAndDelete(req.params.id);
+      if (!item) return res.status(404).json({ error: "Item not found" });
+      res.json({ message: "Item deleted successfully" });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
+
+module.exports = router;
+
+============================================================
+FILE: backend/routes/orders.js
+============================================================
+const express = require("express");
+const router = express.Router();
+const Order = require("../models/Order");
+const Item = require("../models/Item");
+const { authenticate, authorizeRole } = require("../middleware/auth");
+
+// GET user's own orders (authenticated users)
+router.get("/my-orders", authenticate, async (req, res) => {
+  try {
+    const orders = await Order.find({ user: req.user._id })
+      .populate("item")
+      .sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all orders (admin)
+router.get("/", authenticate, authorizeRole("admin"), async (req, res) => {
+  try {
+    const orders = await Order.find().populate("item").sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create order (rent an item)
+router.post("/", authenticate, async (req, res) => {
+  try {
+    const {
+      item: itemId,
+      rentalDays,
+      startDate,
+      customerName,
+      customerEmail,
+      customerPhone,
+    } = req.body;
+
+    const item = await Item.findById(itemId);
+    if (!item) return res.status(404).json({ error: "Item not found" });
+    if (!item.available || item.quantity < 1)
+      return res.status(400).json({ error: "Item is not available for rent" });
+
+    const start = new Date(startDate);
+    const end = new Date(start);
+    end.setDate(end.getDate() + Number(rentalDays));
+
+    const totalAmount = item.pricePerDay * rentalDays;
+
+    const order = new Order({
+      user: req.user._id,
+      customerName: customerName || req.user.name,
+      customerEmail: customerEmail || req.user.email,
+      customerPhone: customerPhone || req.user.phone,
+      item: itemId,
+      itemName: item.name,
+      rentalDays,
+      startDate: start,
+      endDate: end,
+      totalAmount,
+      depositAmount: item.depositAmount,
+    });
+
+    // Decrease quantity
+    item.quantity -= 1;
+    if (item.quantity === 0) item.available = false;
+    await item.save();
+
+    const saved = await order.save();
+    res.status(201).json(saved);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// PUT update order status (admin)
+router.put("/:id", authenticate, authorizeRole("admin"), async (req, res) => {
+  try {
+    const order = await Order.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    }).populate("item");
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    // If returned, restore quantity
+    if (req.body.status === "Returned") {
+      await Item.findByIdAndUpdate(order.item._id, {
+        $inc: { quantity: 1 },
+        available: true,
+      });
+    }
+    res.json(order);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+module.exports = router;
+
+============================================================
+FILE: backend/routes/reviews.js
+============================================================
+const express = require("express");
+const router = express.Router();
+const Review = require("../models/Review");
+const Item = require("../models/Item");
+const { authenticate } = require("../middleware/auth");
+
+// GET all reviews for an item
+router.get("/:itemId", async (req, res) => {
+  try {
+    const reviews = await Review.find({ item: req.params.itemId }).sort({
+      createdAt: -1,
+    });
+    res.json(reviews);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST add a review for an item
+router.post("/:itemId", authenticate, async (req, res) => {
+  try {
+    const { reviewerName, rating, comment } = req.body;
+
+    if (!rating) {
+      return res.status(400).json({ error: "Rating is required." });
+    }
+
+    const review = new Review({
+      item: req.params.itemId,
+      reviewerName: reviewerName || req.user.name,
+      rating: Number(rating),
+      comment,
+    });
+
+    await review.save();
+
+    // Recompute averageRating and reviewCount on the item
+    const allReviews = await Review.find({ item: req.params.itemId });
+    const reviewCount = allReviews.length;
+    const averageRating =
+      reviewCount > 0
+        ? Math.round(
+            (allReviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount) *
+              10,
+          ) / 10
+        : 0;
+
+    await Item.findByIdAndUpdate(req.params.itemId, {
+      averageRating,
+      reviewCount,
+    });
+
+    res.status(201).json(review);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+module.exports = router;
+
+============================================================
+FILE: backend/seed.js
+============================================================
+const mongoose = require("mongoose");
+require("dotenv").config();
+const Item = require("./models/Item");
+
+const MONGO_URI =
+  process.env.MONGO_URI || "mongodb://localhost:27017/rentalapp";
+
+const items = [
+  {
+    name: "Business Suit (Men's)",
+    description:
+      "Premium 3-piece business suit, perfect for interviews, weddings, and formal events. Available in Black, Navy, and Charcoal.",
+    category: "Clothing",
+    pricePerDay: 500,
+    depositAmount: 2000,
+    available: true,
+    quantity: 5,
+    imageUrl: "/images/mens%20suit.jpeg",
+    condition: "Excellent",
+  },
+  {
+    name: "Women's Formal Suit",
+    description:
+      "Elegant women's formal suit for corporate events, presentations, and weddings. Multiple sizes available.",
+    category: "Clothing",
+    pricePerDay: 450,
+    depositAmount: 1800,
+    available: true,
+    quantity: 4,
+    imageUrl: "/images/woman%20suit.jpg",
+    imagePosition: "top",
+    condition: "Excellent",
+  },
+  {
+    name: "Electric Drilling Machine",
+    description:
+      "Heavy-duty 13mm electric drill with variable speed control. Ideal for home renovation, construction, and DIY projects.",
+    category: "Power Tools",
+    pricePerDay: 250,
+    depositAmount: 1500,
+    available: true,
+    quantity: 3,
+    imageUrl:
+      "https://images.unsplash.com/photo-1504148455328-c376907d081c?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Rotary Hammer Drill",
+    description:
+      "900W rotary hammer drill for concrete, brick, and masonry work. Includes 5-piece SDS drill bit set.",
+    category: "Power Tools",
+    pricePerDay: 400,
+    depositAmount: 2500,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1572981779307-38b8cabb2407?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Submersible Water Pump (0.5 HP)",
+    description:
+      "Compact 0.5 HP submersible water pump for drainage, irrigation, and water transfer. Max flow: 2000L/hr.",
+    category: "Pumps",
+    pricePerDay: 350,
+    depositAmount: 2000,
+    available: true,
+    quantity: 3,
+    imageUrl: "/images/submersible-pump.webp",
+    condition: "Good",
+  },
+  {
+    name: "Centrifugal Water Pump (1 HP)",
+    description:
+      "Powerful 1 HP centrifugal pump for garden irrigation, construction sites, and water management.",
+    category: "Pumps",
+    pricePerDay: 550,
+    depositAmount: 3000,
+    available: true,
+    quantity: 2,
+    imageUrl: "/images/Centrifugal%20Water%20Pump%20(1%20HP).jpg",
+    condition: "Good",
+  },
+  {
+    name: "Angle Grinder",
+    description:
+      "2200W angle grinder for cutting, grinding, and polishing metal and masonry. Includes safety guard.",
+    category: "Power Tools",
+    pricePerDay: 200,
+    depositAmount: 1200,
+    available: true,
+    quantity: 4,
+    imageUrl: "/images/Angle%20Grinder.jpeg",
+    condition: "Good",
+  },
+  {
+    name: "Pressure Washer",
+    description:
+      "High-pressure washer (150 bar) for cleaning driveways, vehicles, and outdoor surfaces. Includes 5m hose.",
+    category: "Cleaning Equipment",
+    pricePerDay: 600,
+    depositAmount: 3500,
+    available: true,
+    quantity: 2,
+    imageUrl: "/images/Pressure%20Washer.jpeg",
+    condition: "Excellent",
+  },
+  {
+    name: "Cement Mixer",
+    description:
+      "160L electric cement mixer for small to medium construction jobs. Mixing drum capacity 160 litres.",
+    category: "Construction",
+    pricePerDay: 800,
+    depositAmount: 4000,
+    available: true,
+    quantity: 2,
+    imageUrl: "/images/Cement%20Mixer.jpeg",
+    condition: "Good",
+  },
+  {
+    name: "Generator (5 KVA)",
+    description:
+      "5 KVA portable petrol generator for power backup during events, construction, and outdoor activities.",
+    category: "Electrical",
+    pricePerDay: 1000,
+    depositAmount: 5000,
+    available: true,
+    quantity: 2,
+    imageUrl: "/images/Generator%20(5%20KVA).jpeg",
+    condition: "Good",
+  },
+  {
+    name: "Ladder (6ft Aluminum)",
+    description:
+      "Lightweight 6ft aluminum step ladder with non-slip feet. Load capacity 150 kg.",
+    category: "Construction",
+    pricePerDay: 150,
+    depositAmount: 800,
+    available: true,
+    quantity: 5,
+    imageUrl: "/images/Ladder%20(6ft%20Aluminum).jpeg",
+    condition: "Good",
+  },
+  {
+    name: "Wedding Sherwani",
+    description:
+      "Embroidered silk sherwani for weddings and cultural events. Comes with matching dupatta and pants.",
+    category: "Clothing",
+    pricePerDay: 800,
+    depositAmount: 3000,
+    available: true,
+    quantity: 3,
+    imageUrl: "/images/ws.jpeg",
+    condition: "Excellent",
+  },
+  {
+    name: "Cordless Impact Driver",
+    description:
+      "18V cordless impact driver with dual battery pack and fast charger. Ideal for furniture installation and repair work.",
+    category: "Power Tools",
+    pricePerDay: 300,
+    depositAmount: 1800,
+    available: true,
+    quantity: 4,
+    imageUrl:
+      "https://images.unsplash.com/photo-1581147036324-c47a03a81d48?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Tile Cutter Machine",
+    description:
+      "Manual tile cutter for ceramic and vitrified tiles up to 24 inches. Suitable for home renovation projects.",
+    category: "Construction",
+    pricePerDay: 450,
+    depositAmount: 2200,
+    available: true,
+    quantity: 3,
+    imageUrl:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Wet and Dry Vacuum Cleaner",
+    description:
+      "High suction vacuum cleaner for dust, debris, and liquid spills. Best for deep home and office cleaning.",
+    category: "Cleaning Equipment",
+    pricePerDay: 500,
+    depositAmount: 2600,
+    available: true,
+    quantity: 3,
+    imageUrl:
+      "https://images.unsplash.com/photo-1594224457860-2fb4f4b58b89?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Industrial Floor Scrubber",
+    description:
+      "Electric floor scrubber with water tank and rotating brushes for large indoor spaces and commercial cleaning.",
+    category: "Cleaning Equipment",
+    pricePerDay: 900,
+    depositAmount: 4500,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Portable Air Compressor",
+    description:
+      "Oil-free air compressor for spray painting, inflation, and pneumatic tools. Includes hose and nozzle kit.",
+    category: "Power Tools",
+    pricePerDay: 550,
+    depositAmount: 2800,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1563453392212-326f5e854473?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Inverter Welding Machine",
+    description:
+      "200A inverter welding machine for steel fabrication, gates, and repair jobs. Includes clamp and cable set.",
+    category: "Electrical",
+    pricePerDay: 950,
+    depositAmount: 5000,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1566241978974-df6f3f8f6f65?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Diesel Water Pump (2 HP)",
+    description:
+      "2 HP diesel water pump for farm irrigation and site dewatering with high discharge capacity.",
+    category: "Pumps",
+    pricePerDay: 700,
+    depositAmount: 3800,
+    available: true,
+    quantity: 2,
+    imageUrl: "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Designer Bridal Lehenga",
+    description:
+      "Premium bridal lehenga set with embroidered blouse and dupatta, suitable for wedding and reception events.",
+    category: "Clothing",
+    pricePerDay: 1200,
+    depositAmount: 6000,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Laser Level with Tripod",
+    description:
+      "Self-leveling laser level with aluminum tripod for accurate alignment in interior work and false ceiling setup.",
+    category: "Construction",
+    pricePerDay: 350,
+    depositAmount: 1700,
+    available: true,
+    quantity: 3,
+    imageUrl: "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "LED Flood Light Tower",
+    description:
+      "Portable LED flood light tower for outdoor events, construction zones, and emergency night work.",
+    category: "Electrical",
+    pricePerDay: 850,
+    depositAmount: 4200,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1509395176047-4a66953fd231?w=400",
+    condition: "Good",
+  },
+];
+
+async function seed() {
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log("Connected to MongoDB");
+
+    await Item.deleteMany({});
+    console.log("Cleared existing items");
+
+    const inserted = await Item.insertMany(items);
+    console.log(`Seeded ${inserted.length} items successfully`);
+
+    mongoose.connection.close();
+    console.log("Done!");
+  } catch (err) {
+    console.error("Seed error:", err);
+    process.exit(1);
+  }
+}
+
+seed();
+
+============================================================
+FILE: backend/server.js
+============================================================
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const path = require("path");
+const chatbotRoute = require("./routes/chatbot.route");
+require("dotenv").config();
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Serve images from frontend public folder
+app.use(
+  "/images",
+  express.static(path.join(__dirname, "../frontend/public/images")),
+);
+
+// Routes
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/items", require("./routes/items"));
+app.use("/api/orders", require("./routes/orders"));
+app.use("/api/reviews", require("./routes/reviews"));
+app.use("/api/chatbot", require("./routes/chatbot"));
+app.use("/api/chatbot", chatbotRoute);
+
+// Health check
+app.get("/", (req, res) => res.json({ message: "Rental App API Running" }));
+
+// Connect to MongoDB and start server
+const PORT = process.env.PORT || 5000;
+const MONGO_URI =
+  process.env.MONGO_URI || "mongodb://localhost:27017/rentalapp";
+
+mongoose
+  .connect(MONGO_URI)
+  .then(() => {
+    console.log("MongoDB connected");
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  })
+  .catch((err) => console.error("MongoDB connection error:", err));
+
+============================================================
+FILE: backend/services/nlpService.js
+============================================================
+const { spawn } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+
+const LOCAL_VENV_PYTHON = path.join(__dirname, "../../.venv/bin/python");
+const PYTHON_BIN =
+  process.env.PYTHON_BIN ||
+  (fs.existsSync(LOCAL_VENV_PYTHON) ? LOCAL_VENV_PYTHON : "python3");
+const NLP_SCRIPT = path.join(__dirname, "../nlp/nlp_service.py");
+
+function fallbackResult() {
+  return {
+    intent: "UNKNOWN",
+    confidence: 0,
+    entities: {
+      duration: null,
+      location: null,
+    },
+    fallback: true,
+  };
+}
+
+function classifyIntent(userQuery) {
+  return new Promise((resolve) => {
+    try {
+      const child = spawn(PYTHON_BIN, [NLP_SCRIPT], {
+        cwd: path.join(__dirname, ".."),
+        env: process.env,
+      });
+
+      let stdout = "";
+
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk.toString();
+      });
+
+      child.on("error", () => {
+        resolve(fallbackResult());
+      });
+
+      child.on("close", (code) => {
+        if (code !== 0) {
+          resolve(fallbackResult());
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(stdout || "{}");
+          resolve({
+            intent: parsed.intent || "UNKNOWN",
+            confidence: Number(parsed.confidence) || 0,
+            entities: parsed.entities || { duration: null, location: null },
+            fallback: Boolean(parsed.fallback),
+          });
+        } catch (error) {
+          resolve(fallbackResult());
+        }
+      });
+
+      child.stdin.write((userQuery || "").toString());
+      child.stdin.end();
+    } catch (error) {
+      resolve(fallbackResult());
+    }
+  });
+}
+
+module.exports = {
+  classifyIntent,
+};
+

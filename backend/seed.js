@@ -153,6 +153,134 @@ const items = [
     imageUrl: "/images/ws.jpeg",
     condition: "Excellent",
   },
+  {
+    name: "Cordless Impact Driver",
+    description:
+      "18V cordless impact driver with dual battery pack and fast charger. Ideal for furniture installation and repair work.",
+    category: "Power Tools",
+    pricePerDay: 300,
+    depositAmount: 1800,
+    available: true,
+    quantity: 4,
+    imageUrl:
+      "https://images.unsplash.com/photo-1581147036324-c47a03a81d48?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Tile Cutter Machine",
+    description:
+      "Manual tile cutter for ceramic and vitrified tiles up to 24 inches. Suitable for home renovation projects.",
+    category: "Construction",
+    pricePerDay: 450,
+    depositAmount: 2200,
+    available: true,
+    quantity: 3,
+    imageUrl:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Wet and Dry Vacuum Cleaner",
+    description:
+      "High suction vacuum cleaner for dust, debris, and liquid spills. Best for deep home and office cleaning.",
+    category: "Cleaning Equipment",
+    pricePerDay: 500,
+    depositAmount: 2600,
+    available: true,
+    quantity: 3,
+    imageUrl:
+      "https://images.unsplash.com/photo-1594224457860-2fb4f4b58b89?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Industrial Floor Scrubber",
+    description:
+      "Electric floor scrubber with water tank and rotating brushes for large indoor spaces and commercial cleaning.",
+    category: "Cleaning Equipment",
+    pricePerDay: 900,
+    depositAmount: 4500,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Portable Air Compressor",
+    description:
+      "Oil-free air compressor for spray painting, inflation, and pneumatic tools. Includes hose and nozzle kit.",
+    category: "Power Tools",
+    pricePerDay: 550,
+    depositAmount: 2800,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1563453392212-326f5e854473?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Inverter Welding Machine",
+    description:
+      "200A inverter welding machine for steel fabrication, gates, and repair jobs. Includes clamp and cable set.",
+    category: "Electrical",
+    pricePerDay: 950,
+    depositAmount: 5000,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1566241978974-df6f3f8f6f65?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Diesel Water Pump (2 HP)",
+    description:
+      "2 HP diesel water pump for farm irrigation and site dewatering with high discharge capacity.",
+    category: "Pumps",
+    pricePerDay: 700,
+    depositAmount: 3800,
+    available: true,
+    quantity: 2,
+    imageUrl: "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=400",
+    condition: "Good",
+  },
+  {
+    name: "Designer Bridal Lehenga",
+    description:
+      "Premium bridal lehenga set with embroidered blouse and dupatta, suitable for wedding and reception events.",
+    category: "Clothing",
+    pricePerDay: 1200,
+    depositAmount: 6000,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "Laser Level with Tripod",
+    description:
+      "Self-leveling laser level with aluminum tripod for accurate alignment in interior work and false ceiling setup.",
+    category: "Construction",
+    pricePerDay: 350,
+    depositAmount: 1700,
+    available: true,
+    quantity: 3,
+    imageUrl: "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=400",
+    condition: "Excellent",
+  },
+  {
+    name: "LED Flood Light Tower",
+    description:
+      "Portable LED flood light tower for outdoor events, construction zones, and emergency night work.",
+    category: "Electrical",
+    pricePerDay: 850,
+    depositAmount: 4200,
+    available: true,
+    quantity: 2,
+    imageUrl:
+      "https://images.unsplash.com/photo-1509395176047-4a66953fd231?w=400",
+    condition: "Good",
+  },
 ];
 
 async function seed() {

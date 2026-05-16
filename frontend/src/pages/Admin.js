@@ -258,15 +258,11 @@ function Admin() {
                       <tr key={item._id}>
                         <td>
                           <img
-                            src={
-                              item.imageUrl ||
-                              "https://via.placeholder.com/48?text=?"
-                            }
+                            src={item.imageUrl || "/images/ws.jpeg"}
                             alt={item.name}
                             className="item-thumb"
                             onError={(e) => {
-                              e.target.src =
-                                "https://via.placeholder.com/48?text=?";
+                              e.target.src = "/images/ws.jpeg";
                             }}
                           />
                         </td>

@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
+const chatbotRoute = require("./routes/chatbot.route");
 require("dotenv").config();
 
 const app = express();
@@ -21,6 +22,8 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/items", require("./routes/items"));
 app.use("/api/orders", require("./routes/orders"));
 app.use("/api/reviews", require("./routes/reviews"));
+app.use("/api/chatbot", require("./routes/chatbot"));
+app.use("/api/chatbot", chatbotRoute);
 
 // Health check
 app.get("/", (req, res) => res.json({ message: "Rental App API Running" }));
@@ -37,3 +40,7 @@ mongoose
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })
   .catch((err) => console.error("MongoDB connection error:", err));
+
+
+
+  

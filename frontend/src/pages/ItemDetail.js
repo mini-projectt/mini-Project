@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { getItem, createOrder, getReviews, createReview } from "../api/api";
 import { StarRating } from "../components/ItemCard";
 
-const PLACEHOLDER = "https://via.placeholder.com/600x400?text=No+Image";
+const PLACEHOLDER = "/images/ws.jpeg";
 
 function ItemDetail() {
   const { id } = useParams();
