@@ -48,6 +48,7 @@ router.post("/", authenticate, async (req, res) => {
     end.setDate(end.getDate() + Number(rentalDays));
 
     const totalAmount = item.pricePerDay * rentalDays;
+    const collateralAmount = item.pricePerDay;
 
     const order = new Order({
       user: req.user._id,
@@ -61,6 +62,10 @@ router.post("/", authenticate, async (req, res) => {
       endDate: end,
       totalAmount,
       depositAmount: item.depositAmount,
+      collateralAmount,
+      damagePercent: 0,
+      deductionPercent: 0,
+      refundAmount: collateralAmount,
     });
 
     // Decrease quantity

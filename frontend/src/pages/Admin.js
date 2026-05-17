@@ -186,6 +186,7 @@ function Admin() {
         status: "pending",
         result: "",
         metrics: "",
+        metricsRaw: null,
         checkedAt: null,
       };
       const next = { ...current, ...patch };
@@ -206,6 +207,7 @@ function Admin() {
         status: "pending",
         result: "",
         metrics: "",
+        metricsRaw: null,
         checkedAt: null,
       };
 
@@ -219,6 +221,7 @@ function Admin() {
         [urlKey]: file ? URL.createObjectURL(file) : "",
         result: "",
         metrics: "",
+        metricsRaw: null,
         checkedAt: null,
       };
 
@@ -262,6 +265,34 @@ function Admin() {
     return JSON.stringify(metrics);
   };
 
+  const clampValue = (value, min, max) => {
+    return Math.min(Math.max(value, min), max);
+  };
+
+  const calculateDamagePercent = (similarityScore) => {
+    if (typeof similarityScore !== "number" || Number.isNaN(similarityScore)) {
+      return null;
+    }
+    return clampValue(100 - similarityScore, 0, 100);
+  };
+
+  const calculateDeductionPercent = (damagePercent) => {
+    if (typeof damagePercent !== "number") return null;
+    if (damagePercent <= 0) return 0;
+    return clampValue(Math.ceil(damagePercent / 10) * 10, 0, 100);
+  };
+
+  const calculateRefundAmount = (collateralAmount, deductionPercent) => {
+    if (
+      typeof collateralAmount !== "number" ||
+      typeof deductionPercent !== "number"
+    ) {
+      return null;
+    }
+    const deductionValue = (collateralAmount * deductionPercent) / 100;
+    return Math.max(0, Math.round(collateralAmount - deductionValue));
+  };
+
   const runScratchCheck = async (orderId) => {
     const current = inspections[orderId];
     if (!current?.beforeFile || !current?.afterFile) return;
@@ -270,6 +301,7 @@ function Admin() {
       status: "checking",
       result: "Running analysis...",
       metrics: "",
+      metricsRaw: null,
       checkedAt: null,
     });
 
@@ -283,18 +315,55 @@ function Admin() {
       const hasDamage = /damage\s*detected/i.test(message);
       const resultText = hasDamage ? "Damage Detected" : "No Damage";
       const metricsText = formatMetrics(res.data?.metrics);
+      const similarityScore = res.data?.metrics?.similarity_score;
+      const damagePercent = calculateDamagePercent(similarityScore);
+      const deductionPercent = calculateDeductionPercent(damagePercent);
+      const order = orders.find((entry) => entry._id === orderId);
+      const collateralAmount =
+        typeof order?.collateralAmount === "number"
+          ? order.collateralAmount
+          : typeof order?.item?.pricePerDay === "number"
+            ? order.item.pricePerDay
+            : 0;
+      const refundAmount = calculateRefundAmount(
+        collateralAmount,
+        deductionPercent,
+      );
 
       updateInspection(orderId, {
         status: "checked",
         result: resultText,
         metrics: metricsText,
+        metricsRaw: res.data?.metrics || null,
         checkedAt: Date.now(),
       });
+
+      if (
+        typeof damagePercent === "number" &&
+        typeof deductionPercent === "number" &&
+        typeof refundAmount === "number"
+      ) {
+        const updatePayload = {
+          damagePercent,
+          deductionPercent,
+          refundAmount,
+        };
+
+        if (!order?.collateralAmount && collateralAmount > 0) {
+          updatePayload.collateralAmount = collateralAmount;
+        }
+
+        const updated = await updateOrder(orderId, updatePayload);
+        setOrders((prev) =>
+          prev.map((entry) => (entry._id === orderId ? updated.data : entry)),
+        );
+      }
     } catch (err) {
       updateInspection(orderId, {
         status: "ready",
         result: err.response?.data?.error || "Analysis failed.",
         metrics: "",
+        metricsRaw: null,
         checkedAt: null,
       });
     }
@@ -657,6 +726,39 @@ function Admin() {
                               ? "Ready to Check"
                               : "Pending";
 
+                      const damageDetected =
+                        inspection.metricsRaw?.damage_detected ??
+                        /damage\s*detected/i.test(inspection.result || "");
+                      const similarityScore =
+                        inspection.metricsRaw?.similarity_score ?? null;
+                      const damageCount =
+                        inspection.metricsRaw?.damage_count ?? null;
+                      const orderCollateral =
+                        typeof order.collateralAmount === "number"
+                          ? order.collateralAmount
+                          : typeof order.item?.pricePerDay === "number"
+                            ? order.item.pricePerDay
+                            : null;
+                      const orderDamagePercent =
+                        typeof order.damagePercent === "number"
+                          ? order.damagePercent
+                          : calculateDamagePercent(similarityScore);
+                      const orderDeductionPercent =
+                        typeof order.deductionPercent === "number"
+                          ? order.deductionPercent
+                          : calculateDeductionPercent(orderDamagePercent);
+                      const orderRefundAmount =
+                        typeof order.refundAmount === "number"
+                          ? order.refundAmount
+                          : calculateRefundAmount(
+                              orderCollateral || 0,
+                              orderDeductionPercent,
+                            );
+                      const similarityPercent =
+                        typeof similarityScore === "number"
+                          ? Math.min(Math.max(similarityScore, 0), 100)
+                          : null;
+
                       return [
                         <tr key={order._id}>
                           <td style={{ color: "#94a3b8" }}>{idx + 1}</td>
@@ -820,19 +922,119 @@ function Admin() {
                                 </div>
 
                                 <div className="inspection-actions">
-                                  <div>
-                                    <p className="inspection-title">
-                                      Scratch Detection Result
-                                    </p>
-                                    <p className="inspection-subtitle">
-                                      {inspection.result ||
-                                        "Upload both photos to enable checking."}
-                                    </p>
-                                    {inspection.metrics && (
-                                      <p className="inspection-meta">
-                                        Model output: {inspection.metrics}
-                                      </p>
+                                  <div className="inspection-result-card">
+                                    <div className="inspection-result-header">
+                                      <div>
+                                        <p className="inspection-result-title">
+                                          Scratch Detection Result
+                                        </p>
+                                        <p className="inspection-result-message">
+                                          {inspection.result ||
+                                            "Upload both photos to enable checking."}
+                                        </p>
+                                      </div>
+                                      {status === "checked" && (
+                                        <span
+                                          className={`inspection-result-pill ${
+                                            damageDetected
+                                              ? "inspection-result-damage"
+                                              : "inspection-result-clean"
+                                          }`}
+                                        >
+                                          {damageDetected
+                                            ? "Damage Detected"
+                                            : "No Damage"}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="inspection-result-grid">
+                                      <div className="inspection-result-item">
+                                        <span className="inspection-result-label">
+                                          Similarity
+                                        </span>
+                                        <span className="inspection-result-value">
+                                          {typeof similarityScore === "number"
+                                            ? `${similarityScore}%`
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                      <div className="inspection-result-item">
+                                        <span className="inspection-result-label">
+                                          Damage Count
+                                        </span>
+                                        <span className="inspection-result-value">
+                                          {typeof damageCount === "number"
+                                            ? damageCount
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                      <div className="inspection-result-item">
+                                        <span className="inspection-result-label">
+                                          Model Output
+                                        </span>
+                                        <span className="inspection-result-value">
+                                          {inspection.metrics || "-"}
+                                        </span>
+                                      </div>
+                                      <div className="inspection-result-item">
+                                        <span className="inspection-result-label">
+                                          Collateral
+                                        </span>
+                                        <span className="inspection-result-value">
+                                          {typeof orderCollateral === "number"
+                                            ? `₹${orderCollateral.toLocaleString()}`
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                      <div className="inspection-result-item">
+                                        <span className="inspection-result-label">
+                                          Deduction
+                                        </span>
+                                        <span className="inspection-result-value">
+                                          {typeof orderDeductionPercent ===
+                                          "number"
+                                            ? `${orderDeductionPercent}%`
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                      <div className="inspection-result-item">
+                                        <span className="inspection-result-label">
+                                          Refund
+                                        </span>
+                                        <span className="inspection-result-value">
+                                          {typeof orderRefundAmount === "number"
+                                            ? `₹${orderRefundAmount.toLocaleString()}`
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {typeof similarityPercent === "number" && (
+                                      <div className="inspection-pie-row">
+                                        <div
+                                          className="inspection-pie"
+                                          style={{
+                                            "--similarity": `${similarityPercent}%`,
+                                          }}
+                                        >
+                                          <span className="inspection-pie-label">
+                                            {Math.round(similarityPercent)}%
+                                          </span>
+                                        </div>
+                                        <div className="inspection-pie-legend">
+                                          <div className="inspection-pie-legend-item">
+                                            <span className="legend-dot legend-dot-good" />
+                                            Similarity
+                                          </div>
+                                          <div className="inspection-pie-legend-item">
+                                            <span className="legend-dot legend-dot-gap" />
+                                            Difference
+                                          </div>
+                                        </div>
+                                      </div>
                                     )}
+
                                     {inspection.checkedAt && (
                                       <p className="inspection-meta">
                                         Checked on{" "}
@@ -842,6 +1044,7 @@ function Admin() {
                                       </p>
                                     )}
                                   </div>
+
                                   <div className="inspection-action-buttons">
                                     <button
                                       className="btn btn-primary btn-sm"

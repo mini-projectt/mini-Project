@@ -188,6 +188,12 @@ function ItemDetail() {
               </div>
             </div>
             <div className="meta-item">
+              <div className="meta-label">Collateral</div>
+              <div className="meta-value">
+                ₹{item.pricePerDay.toLocaleString()}
+              </div>
+            </div>
+            <div className="meta-item">
               <div className="meta-label">Security Deposit</div>
               <div className="meta-value">
                 ₹{item.depositAmount.toLocaleString()}

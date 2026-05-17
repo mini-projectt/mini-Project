@@ -13,6 +13,10 @@ const orderSchema = new mongoose.Schema(
     endDate: { type: Date, required: true },
     totalAmount: { type: Number, required: true },
     depositAmount: { type: Number, default: 0 },
+    collateralAmount: { type: Number, default: 0 },
+    damagePercent: { type: Number, default: 0 },
+    deductionPercent: { type: Number, default: 0 },
+    refundAmount: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ["Pending", "Confirmed", "Returned", "Cancelled"],

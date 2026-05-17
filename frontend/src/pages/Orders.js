@@ -112,6 +112,15 @@ function Orders() {
                   </span>
                 </div>
 
+                {order.collateralAmount > 0 && (
+                  <div className="order-detail-row">
+                    <span className="detail-label">Collateral:</span>
+                    <span className="detail-value">
+                      ₹{order.collateralAmount.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+
                 {order.depositAmount > 0 && (
                   <div className="order-detail-row">
                     <span className="detail-label">Deposit:</span>
@@ -120,6 +129,26 @@ function Orders() {
                     </span>
                   </div>
                 )}
+
+                {order.status === "Returned" &&
+                  typeof order.refundAmount === "number" && (
+                    <div className="order-detail-row">
+                      <span className="detail-label">Collateral Refund:</span>
+                      <span className="detail-value">
+                        ₹{order.refundAmount.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+
+                {order.status === "Returned" &&
+                  typeof order.deductionPercent === "number" && (
+                    <div className="order-detail-row">
+                      <span className="detail-label">Damage Deduction:</span>
+                      <span className="detail-value">
+                        {order.deductionPercent}%
+                      </span>
+                    </div>
+                  )}
 
                 <div className="order-detail-row">
                   <span className="detail-label">Contact:</span>
