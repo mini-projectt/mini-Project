@@ -1149,6 +1149,12 @@ select.form-control option {
   border: 1px solid #bbf7d0;
 }
 
+.inspection-checking {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
 /* Toggle Switch */
 .toggle-switch {
   position: relative;

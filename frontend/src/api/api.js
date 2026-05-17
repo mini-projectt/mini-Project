@@ -51,6 +51,18 @@ export const getMyOrders = () => API.get("/orders/my-orders");
 export const createOrder = (data) => API.post("/orders", data);
 export const updateOrder = (id, data) => API.put(`/orders/${id}`, data);
 
+// Scanner (scratch detection)
+export const verifyReturnImage = (orderId, beforeImage, afterImage) => {
+  const formData = new FormData();
+  formData.append("orderId", orderId);
+  formData.append("beforeImage", beforeImage);
+  formData.append("afterImage", afterImage);
+
+  return API.post("/scanner/verify", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
 // Reviews
 export const getReviews = (itemId) => API.get(`/reviews/${itemId}`);
 export const createReview = (itemId, data) =>

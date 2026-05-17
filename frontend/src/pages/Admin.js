@@ -6,6 +6,7 @@ import {
   deleteItem,
   getOrders,
   updateOrder,
+  verifyReturnImage,
 } from "../api/api";
 
 const EMPTY_FORM = {
@@ -184,6 +185,7 @@ function Admin() {
         afterUrl: "",
         status: "pending",
         result: "",
+        metrics: "",
         checkedAt: null,
       };
       const next = { ...current, ...patch };
@@ -203,6 +205,7 @@ function Admin() {
         afterUrl: "",
         status: "pending",
         result: "",
+        metrics: "",
         checkedAt: null,
       };
 
@@ -215,6 +218,7 @@ function Admin() {
         [fileKey]: file,
         [urlKey]: file ? URL.createObjectURL(file) : "",
         result: "",
+        metrics: "",
         checkedAt: null,
       };
 
@@ -239,15 +243,61 @@ function Admin() {
     });
   };
 
-  const runScratchCheck = (orderId) => {
+  const formatMetrics = (metrics) => {
+    if (!metrics || typeof metrics !== "object") return "";
+    const parts = [];
+    if (Object.prototype.hasOwnProperty.call(metrics, "damage_detected")) {
+      parts.push(`damage_detected: ${metrics.damage_detected}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(metrics, "damage_score")) {
+      parts.push(`damage_score: ${metrics.damage_score}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(metrics, "similarity")) {
+      parts.push(`similarity: ${metrics.similarity}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(metrics, "similarity_score")) {
+      parts.push(`similarity_score: ${metrics.similarity_score}`);
+    }
+    if (parts.length > 0) return parts.join(" | ");
+    return JSON.stringify(metrics);
+  };
+
+  const runScratchCheck = async (orderId) => {
     const current = inspections[orderId];
     if (!current?.beforeFile || !current?.afterFile) return;
 
     updateInspection(orderId, {
-      status: "checked",
-      result: "No visible damage detected (mock)",
-      checkedAt: Date.now(),
+      status: "checking",
+      result: "Running analysis...",
+      metrics: "",
+      checkedAt: null,
     });
+
+    try {
+      const res = await verifyReturnImage(
+        orderId,
+        current.beforeFile,
+        current.afterFile,
+      );
+      const message = res.data?.message || "";
+      const hasDamage = /damage\s*detected/i.test(message);
+      const resultText = hasDamage ? "Damage Detected" : "No Damage";
+      const metricsText = formatMetrics(res.data?.metrics);
+
+      updateInspection(orderId, {
+        status: "checked",
+        result: resultText,
+        metrics: metricsText,
+        checkedAt: Date.now(),
+      });
+    } catch (err) {
+      updateInspection(orderId, {
+        status: "ready",
+        result: err.response?.data?.error || "Analysis failed.",
+        metrics: "",
+        checkedAt: null,
+      });
+    }
   };
 
   return (
@@ -601,9 +651,11 @@ function Admin() {
                       const statusLabel =
                         status === "checked"
                           ? "Checked"
-                          : status === "ready"
-                            ? "Ready to Check"
-                            : "Pending";
+                          : status === "checking"
+                            ? "Checking"
+                            : status === "ready"
+                              ? "Ready to Check"
+                              : "Pending";
 
                       return [
                         <tr key={order._id}>
@@ -776,6 +828,11 @@ function Admin() {
                                       {inspection.result ||
                                         "Upload both photos to enable checking."}
                                     </p>
+                                    {inspection.metrics && (
+                                      <p className="inspection-meta">
+                                        Model output: {inspection.metrics}
+                                      </p>
+                                    )}
                                     {inspection.checkedAt && (
                                       <p className="inspection-meta">
                                         Checked on{" "}
@@ -789,9 +846,15 @@ function Admin() {
                                     <button
                                       className="btn btn-primary btn-sm"
                                       onClick={() => runScratchCheck(order._id)}
-                                      disabled={status !== "ready"}
+                                      disabled={
+                                        status === "checking" ||
+                                        !inspection.beforeFile ||
+                                        !inspection.afterFile
+                                      }
                                     >
-                                      Run Scratch Check
+                                      {status === "checking"
+                                        ? "Checking..."
+                                        : "Run Scratch Check"}
                                     </button>
                                     <button
                                       className="btn btn-secondary btn-sm"

@@ -1,8 +1,17 @@
 import cv2
 import imutils
+import json
 import os
+import sys
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
+
+QUIET = False
+
+
+def log(message):
+    if not QUIET:
+        print(message)
 
 def preprocess_image(image_path, width=600):
     """
@@ -11,14 +20,14 @@ def preprocess_image(image_path, width=600):
     image = cv2.imread(image_path)
     
     if image is None:
-        print(f"[ERROR] Could not load image at path: {image_path}")
-        print("Please check if the file exists and the name is spelled correctly.")
+        log(f"[ERROR] Could not load image at path: {image_path}")
+        log("Please check if the file exists and the name is spelled correctly.")
         return None, None
 
     resized_image = imutils.resize(image, width=width)
     gray_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY)
 
-    print(f"[SUCCESS] Processed: {image_path} | New Size: {gray_image.shape}")
+    log(f"[SUCCESS] Processed: {image_path} | New Size: {gray_image.shape}")
     return resized_image, gray_image
 
 def align_images(before_gray, after_gray, after_color):
@@ -26,7 +35,7 @@ def align_images(before_gray, after_gray, after_color):
     Finds matching features between two images and warps the 'after' image
     to perfectly align with the 'before' image.
     """
-    print("[INFO] Starting image alignment...")
+    log("[INFO] Starting image alignment...")
 
     # 1. Initialize ORB
    # 1. Initialize ORB
@@ -66,7 +75,7 @@ def align_images(before_gray, after_gray, after_color):
     aligned_after_color = cv2.warpPerspective(after_color, matrix, (width, height))
     aligned_after_gray = cv2.cvtColor(aligned_after_color, cv2.COLOR_BGR2GRAY)
 
-    print("[SUCCESS] Images successfully aligned.")
+    log("[SUCCESS] Images successfully aligned.")
     return aligned_after_gray, aligned_after_color, match_visual
 
 def compare_images(before_gray, aligned_after_gray):
@@ -74,13 +83,13 @@ def compare_images(before_gray, aligned_after_gray):
     Compares the original image with the aligned returned image using SSIM
     to highlight structural differences (scratches/dents).
     """
-    print("[INFO] Calculating Structural Similarity...")
+    log("[INFO] Calculating Structural Similarity...")
 
     # Calculate SSIM
     # 'score' is a number between 0 and 1 (1 means they are identical)
     # 'diff' is a raw difference image matrix (floats between 0 and 1)
     score, diff = ssim(before_gray, aligned_after_gray, full=True)
-    print(f"[RESULT] Image Similarity Score: {score * 100:.2f}%")
+    log(f"[RESULT] Image Similarity Score: {score * 100:.2f}%")
 
     # The diff image contains floating point numbers from 0 to 1.
     # OpenCV needs integers from 0 to 255 to display or process an image.
@@ -93,7 +102,7 @@ def find_and_draw_damage(diff_image, aligned_after_color):
     Takes the raw difference map, filters out the noise, finds the 
     actual damage spots, and draws red bounding boxes around them.
     """
-    print("[INFO] Highlighting damage...")
+    log("[INFO] Highlighting damage...")
 
     # 1. Thresholding (The Filter)
     # SSIM makes identical areas WHITE and different areas DARK. 
@@ -130,12 +139,45 @@ def find_and_draw_damage(diff_image, aligned_after_color):
             cv2.rectangle(output_image, (x, y), (x + w, y + h), (0, 0, 255), 2)
             damage_count += 1
 
-    print(f"[RESULT] Found {damage_count} distinct areas of damage.")
-    return output_image, thresh
+    log(f"[RESULT] Found {damage_count} distinct areas of damage.")
+    return output_image, thresh, damage_count
 # --- SPRINT TESTING BLOCK ---
 # --- SPRINT TESTING BLOCK ---
 # --- SPRINT TESTING BLOCK ---
 if __name__ == "__main__":
+    if len(sys.argv) == 3:
+        QUIET = True
+        img1_path = sys.argv[1]
+        img2_path = sys.argv[2]
+
+        color_before, gray_before = preprocess_image(img1_path)
+        color_after, gray_after = preprocess_image(img2_path)
+
+        if gray_before is None or gray_after is None:
+            print(json.dumps({
+                "damage_detected": False,
+                "similarity_score": 0.0,
+                "damage_count": 0,
+                "error": "Failed to load one or more images.",
+            }))
+            sys.exit(0)
+
+        aligned_gray, aligned_color, _ = align_images(
+            gray_before,
+            gray_after,
+            color_after,
+        )
+        score, diff_image = compare_images(gray_before, aligned_gray)
+        _, _, damage_count = find_and_draw_damage(diff_image, aligned_color)
+
+        result = {
+            "damage_detected": damage_count > 0,
+            "similarity_score": round(score * 100, 2),
+            "damage_count": damage_count,
+        }
+        print(json.dumps(result))
+        sys.exit(0)
+
     img1_path = "before.jpg"
     img2_path = "after.jpg"
 
@@ -146,20 +188,18 @@ if __name__ == "__main__":
         color_after, gray_after = preprocess_image(img2_path)
 
         if gray_before is not None and gray_after is not None:
-            # Phase 3: Align
-            aligned_gray, aligned_color, match_visual = align_images(gray_before, gray_after, color_after)
-            
-            # Phase 4: Compare
+            aligned_gray, aligned_color, match_visual = align_images(
+                gray_before,
+                gray_after,
+                color_after,
+            )
             score, diff_image = compare_images(gray_before, aligned_gray)
+            final_output, mask, _ = find_and_draw_damage(diff_image, aligned_color)
 
-            # Phase 5 & 6: Find and Draw Damage
-            final_output, mask = find_and_draw_damage(diff_image, aligned_color)
-
-            # --- THE BIG REVEAL ---
             cv2.imshow("1. Original Before", color_before)
             cv2.imshow("2. The Mask (White = Damage)", mask)
             cv2.imshow("3. Final Result (Damage Highlighted)", final_output)
-            
+
             print("Press any key on the image windows to close them...")
             cv2.waitKey(0)
             cv2.destroyAllWindows()
