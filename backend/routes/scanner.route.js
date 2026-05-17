@@ -15,7 +15,8 @@ const CV_SCRIPT = path.join(__dirname, "../../scrach Detection/damage_detector.p
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadPath = path.join(__dirname, "../uploads/returns");
-    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath, { recursive: true });
+    if (!fs.existsSync(uploadPath))
+      fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
@@ -62,8 +63,8 @@ router.post("/verify-360", authenticate, authorizeRole("admin"), upload, async (
       b_right, a_right
     ]);
 
-    let stdout = "";
-    let stderr = "";
+      let stdout = "";
+      let stderr = "";
 
     child.stdout.on("data", (chunk) => {
       stdout += chunk.toString();
