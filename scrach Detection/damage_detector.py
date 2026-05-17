@@ -1,165 +1,124 @@
 import cv2
-import imutils
-import os
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
+import sys
+import json
+import os
 
-def preprocess_image(image_path, width=600):
-    """
-    Loads an image, resizes it to a standard width, and converts it to grayscale.
-    """
-    image = cv2.imread(image_path)
+def analyze_damage(before_path, after_path):
+    """Combines SSIM with highly sensitive Absolute Difference for scratch detection."""
+    if not os.path.exists(before_path) or not os.path.exists(after_path):
+        return 0.0 # Return 0 if files are missing to trigger a fail-safe
+
+    img1 = cv2.imread(before_path)
+    img2 = cv2.imread(after_path)
+
+    # Force both images to the exact same dimensions
+    img1 = cv2.resize(img1, (600, 600))
+    img2 = cv2.resize(img2, (600, 600))
+
+    gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+
+    # --- Phase 1: Structural Similarity (Good for big dents/cracks) ---
+    score, _ = ssim(gray1, gray2, full=True)
+    base_score = score * 100
+
+    # --- Phase 2: Absolute Difference (Hyper-sensitive to scratches) ---
+    # 1. Blur slightly to remove microscopic camera noise/dust
+    blur1 = cv2.GaussianBlur(gray1, (5, 5), 0)
+    blur2 = cv2.GaussianBlur(gray2, (5, 5), 0)
+
+    # 2. Subtract the images to find exact pixel changes
+    diff = cv2.absdiff(blur1, blur2)
+
+    # 3. Thresholding: Only care if the pixel changed color drastically
+    _, thresh = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
     
-    if image is None:
-        print(f"[ERROR] Could not load image at path: {image_path}")
-        print("Please check if the file exists and the name is spelled correctly.")
-        return None, None
+    # 4. Dilate to connect broken pieces of a scratch into one solid line
+    kernel = np.ones((3,3), np.uint8)
+    thresh = cv2.dilate(thresh, kernel, iterations=1)
 
-    resized_image = imutils.resize(image, width=width)
-    gray_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY)
+    # 5. Calculate exactly how many pixels belong to the scratch
+    defects = cv2.countNonZero(thresh)
+    total_pixels = 600 * 600
+    defect_ratio = (defects / total_pixels) * 100
 
-    print(f"[SUCCESS] Processed: {image_path} | New Size: {gray_image.shape}")
-    return resized_image, gray_image
+    # --- Phase 3: The Penalty Math ---
+    penalty = defect_ratio * 8 
+    final_score = base_score - penalty 
+    
+    # Ensure the score stays within 0 to 100
+    return max(0.0, round(final_score, 2))
 
-def align_images(before_gray, after_gray, after_color):
-    """
-    Finds matching features between two images and warps the 'after' image
-    to perfectly align with the 'before' image.
-    """
-    print("[INFO] Starting image alignment...")
-
-    # 1. Initialize ORB
-   # 1. Initialize ORB
-    orb = cv2.ORB_create(nfeatures=5000)
-
-    # 2. Detect keypoints and compute descriptors
-    keypoints1, descriptors1 = orb.detectAndCompute(before_gray, None)
-    keypoints2, descriptors2 = orb.detectAndCompute(after_gray, None)
-
-    # 3. Match the features using Brute-Force Matcher
-    matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    matches = matcher.match(descriptors1, descriptors2)
-
-    # Sort the matches by distance
-    matches = sorted(matches, key=lambda x: x.distance)
-
-    # Keep only the top 20% of matches
-    keep = int(len(matches) * 0.2)
-    best_matches = matches[:keep]
-
-    # Draw the matches visually
-    match_visual = cv2.drawMatches(before_gray, keypoints1, after_gray, keypoints2, best_matches, None)
-
-    # 4. Extract (x, y) coordinates of the best matches
-    pts1 = np.zeros((len(best_matches), 2), dtype="float32")
-    pts2 = np.zeros((len(best_matches), 2), dtype="float32")
-
-    for i, match in enumerate(best_matches):
-        pts1[i] = keypoints1[match.queryIdx].pt
-        pts2[i] = keypoints2[match.trainIdx].pt
-
-    # 5. Calculate Homography Matrix
-    matrix, mask = cv2.findHomography(pts2, pts1, cv2.RANSAC)
-
-    # 6. Warp the 'After' image
-    height, width = before_gray.shape
-    aligned_after_color = cv2.warpPerspective(after_color, matrix, (width, height))
-    aligned_after_gray = cv2.cvtColor(aligned_after_color, cv2.COLOR_BGR2GRAY)
-
-    print("[SUCCESS] Images successfully aligned.")
-    return aligned_after_gray, aligned_after_color, match_visual
-
-def compare_images(before_gray, aligned_after_gray):
-    """
-    Compares the original image with the aligned returned image using SSIM
-    to highlight structural differences (scratches/dents).
-    """
-    print("[INFO] Calculating Structural Similarity...")
-
-    # Calculate SSIM
-    # 'score' is a number between 0 and 1 (1 means they are identical)
-    # 'diff' is a raw difference image matrix (floats between 0 and 1)
-    score, diff = ssim(before_gray, aligned_after_gray, full=True)
-    print(f"[RESULT] Image Similarity Score: {score * 100:.2f}%")
-
-    # The diff image contains floating point numbers from 0 to 1.
-    # OpenCV needs integers from 0 to 255 to display or process an image.
-    diff = (diff * 255).astype("uint8")
-
-    return score, diff
-
-def find_and_draw_damage(diff_image, aligned_after_color):
-    """
-    Takes the raw difference map, filters out the noise, finds the 
-    actual damage spots, and draws red bounding boxes around them.
-    """
-    print("[INFO] Highlighting damage...")
-
-    # 1. Thresholding (The Filter)
-    # SSIM makes identical areas WHITE and different areas DARK. 
-    # We use THRESH_BINARY_INV to flip this: Damage becomes WHITE, everything else BLACK.
-    # Otsu's method automatically calculates the best threshold value.
-    _, thresh = cv2.threshold(diff_image, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
-
-    # 2. Clean up the noise (Morphological Operations)
-    # Sometimes dust or slight shadows appear as tiny white dots. We 'open' the image 
-    # to erase tiny dots but keep the big scratches.
-    kernel = np.ones((5, 5), np.uint8)
-    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-
-    # 3. Find Contours (Trace the shapes)
-    # This finds the outlines of all the white blobs on our black mask.
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Make a copy of the color image to draw on
-    output_image = aligned_after_color.copy()
-    damage_count = 0
-
-    # 4. Loop through the contours and draw boxes
-    for c in contours:
-        # Calculate the area of the contour
-        area = cv2.contourArea(c)
-        
-        # FILTER: If the area is too small (e.g., under 50 pixels), ignore it. 
-        # This prevents drawing boxes around specks of dust.
-        if area > 50:
-            # Get the coordinates for the bounding box
-            x, y, w, h = cv2.boundingRect(c)
-            
-            # Draw a RED rectangle (BGR format: 0, 0, 255) with a thickness of 2
-            cv2.rectangle(output_image, (x, y), (x + w, y + h), (0, 0, 255), 2)
-            damage_count += 1
-
-    print(f"[RESULT] Found {damage_count} distinct areas of damage.")
-    return output_image, thresh
-# --- SPRINT TESTING BLOCK ---
-# --- SPRINT TESTING BLOCK ---
-# --- SPRINT TESTING BLOCK ---
 if __name__ == "__main__":
-    img1_path = "before.jpg"
-    img2_path = "after.jpg"
-
-    if not os.path.exists(img1_path) or not os.path.exists(img2_path):
-        print("[WARNING] Missing test images.")
+    # Similarity threshold: Anything below 90 is likely damaged.
+    DAMAGE_THRESHOLD = 90.0 
+    
+    # MODE 1: Node.js API Mode (Express passes exactly 8 paths)
+    if len(sys.argv) == 9:
+        pairs = {
+            "Front": (sys.argv[1], sys.argv[2]),
+            "Back":  (sys.argv[3], sys.argv[4]),
+            "Left":  (sys.argv[5], sys.argv[6]),
+            "Right": (sys.argv[7], sys.argv[8])
+        }
+        
+    # MODE 2: Local Testing Mode (You just ran 'python damage_detector.py' in the terminal)
+    elif len(sys.argv) == 1:
+        # We don't want this print statement breaking the JSON if Node catches it, 
+        # but since this only runs locally, it's safe and helpful!
+        print("[INFO] Running in Local Testing Mode...")
+        pairs = {
+            "Front": ("front_before.png", "front_after.png"),
+            "Back":  ("back_before.png", "back_after.png"),
+            "Left":  ("left_before.png", "left_after.png"),
+            "Right": ("right_before.png", "right_after.png")
+        }
+        
+        # Fail-safe: Check if you actually put the 8 images in the folder
+        missing = False
+        for side, (b, a) in pairs.items():
+            if not os.path.exists(b) or not os.path.exists(a):
+                print(f"[WARNING] Missing images for {side}. Expected '{b}' and '{a}'")
+                missing = True
+        if missing:
+            print("\n[ERROR] Add the missing testing images to this folder and try again.")
+            sys.exit(1)
+            
     else:
-        color_before, gray_before = preprocess_image(img1_path)
-        color_after, gray_after = preprocess_image(img2_path)
+        print(json.dumps({"error": "Invalid arguments. Provide exactly 8 paths for API or 0 for local test."}))
+        sys.exit(1)
 
-        if gray_before is not None and gray_after is not None:
-            # Phase 3: Align
-            aligned_gray, aligned_color, match_visual = align_images(gray_before, gray_after, color_after)
-            
-            # Phase 4: Compare
-            score, diff_image = compare_images(gray_before, aligned_gray)
+    # --- Run the Math ---
+    scan_results = {}
+    is_damaged = False
+    damaged_sides = []
 
-            # Phase 5 & 6: Find and Draw Damage
-            final_output, mask = find_and_draw_damage(diff_image, aligned_color)
+    for side, (before_img, after_img) in pairs.items():
+        score = analyze_damage(before_img, after_img)
+        scan_results[side] = score
+        
+        if score < DAMAGE_THRESHOLD:
+            is_damaged = True
+            damaged_sides.append(side)
 
-            # --- THE BIG REVEAL ---
-            cv2.imshow("1. Original Before", color_before)
-            cv2.imshow("2. The Mask (White = Damage)", mask)
-            cv2.imshow("3. Final Result (Damage Highlighted)", final_output)
-            
-            print("Press any key on the image windows to close them...")
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+    # --- Formatted Outputs ---
+    # If Node.js called it, print strict JSON
+    if len(sys.argv) == 9:
+        final_report = {
+            "damage_detected": is_damaged,
+            "damaged_sides": damaged_sides,
+            "scores": scan_results,
+        }
+        print(json.dumps(final_report))
+        
+    # If you called it locally, print a nice, readable terminal report
+    else:
+        print("\n=== 360 DAMAGE SCAN COMPLETE ===")
+        print(f"Status: {'[WARNING] DAMAGE DETECTED' if is_damaged else '[OK] ALL SIDES CLEAN'}")
+        if is_damaged:
+            print(f"Damaged Sides: {', '.join(damaged_sides)}")
+        print("\nSimilarity Scores:")
+        for s, sc in scan_results.items():
+            print(f" - {s}: {sc}%")
