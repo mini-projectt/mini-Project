@@ -1010,6 +1010,17 @@ function Admin() {
                                       </div>
                                     </div>
 
+                                    {inspection.checkedAt && (
+                                      <p className="inspection-meta">
+                                        Checked on{" "}
+                                        {new Date(
+                                          inspection.checkedAt,
+                                        ).toLocaleString()}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  <div className="inspection-side">
                                     {typeof similarityPercent === "number" && (
                                       <div className="inspection-pie-row">
                                         <div
@@ -1035,36 +1046,31 @@ function Admin() {
                                       </div>
                                     )}
 
-                                    {inspection.checkedAt && (
-                                      <p className="inspection-meta">
-                                        Checked on{" "}
-                                        {new Date(
-                                          inspection.checkedAt,
-                                        ).toLocaleString()}
-                                      </p>
-                                    )}
-                                  </div>
-
-                                  <div className="inspection-action-buttons">
-                                    <button
-                                      className="btn btn-primary btn-sm"
-                                      onClick={() => runScratchCheck(order._id)}
-                                      disabled={
-                                        status === "checking" ||
-                                        !inspection.beforeFile ||
-                                        !inspection.afterFile
-                                      }
-                                    >
-                                      {status === "checking"
-                                        ? "Checking..."
-                                        : "Run Scratch Check"}
-                                    </button>
-                                    <button
-                                      className="btn btn-secondary btn-sm"
-                                      onClick={() => clearInspection(order._id)}
-                                    >
-                                      Clear
-                                    </button>
+                                    <div className="inspection-action-buttons">
+                                      <button
+                                        className="btn btn-primary btn-sm"
+                                        onClick={() =>
+                                          runScratchCheck(order._id)
+                                        }
+                                        disabled={
+                                          status === "checking" ||
+                                          !inspection.beforeFile ||
+                                          !inspection.afterFile
+                                        }
+                                      >
+                                        {status === "checking"
+                                          ? "Checking..."
+                                          : "Run Scratch Check"}
+                                      </button>
+                                      <button
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() =>
+                                          clearInspection(order._id)
+                                        }
+                                      >
+                                        Clear
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
