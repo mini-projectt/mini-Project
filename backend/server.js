@@ -24,6 +24,7 @@ app.use("/api/orders", require("./routes/orders"));
 app.use("/api/reviews", require("./routes/reviews"));
 app.use("/api/chatbot", require("./routes/chatbot"));
 app.use("/api/chatbot", chatbotRoute);
+app.use("/api/scanner", require("./routes/scanner.route"));
 
 // Health check
 app.get("/", (req, res) => res.json({ message: "Rental App API Running" }));
