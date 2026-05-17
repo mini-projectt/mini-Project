@@ -40,6 +40,8 @@ function Admin() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [inspections, setInspections] = useState({});
+  const [openInspectionId, setOpenInspectionId] = useState(null);
 
   useEffect(() => {
     if (tab === "items" || tab === "add") fetchItems();
@@ -167,6 +169,85 @@ function Admin() {
     } catch {
       showMessage("error", "Failed to update order status.");
     }
+  };
+
+  const toggleInspection = (orderId) => {
+    setOpenInspectionId((prev) => (prev === orderId ? null : orderId));
+  };
+
+  const updateInspection = (orderId, patch) => {
+    setInspections((prev) => {
+      const current = prev[orderId] || {
+        beforeFile: null,
+        beforeUrl: "",
+        afterFile: null,
+        afterUrl: "",
+        status: "pending",
+        result: "",
+        checkedAt: null,
+      };
+      const next = { ...current, ...patch };
+      return { ...prev, [orderId]: next };
+    });
+  };
+
+  const handlePhotoUpload = (orderId, phase, file) => {
+    const fileKey = phase === "before" ? "beforeFile" : "afterFile";
+    const urlKey = phase === "before" ? "beforeUrl" : "afterUrl";
+
+    setInspections((prev) => {
+      const current = prev[orderId] || {
+        beforeFile: null,
+        beforeUrl: "",
+        afterFile: null,
+        afterUrl: "",
+        status: "pending",
+        result: "",
+        checkedAt: null,
+      };
+
+      if (current[urlKey]) {
+        URL.revokeObjectURL(current[urlKey]);
+      }
+
+      const next = {
+        ...current,
+        [fileKey]: file,
+        [urlKey]: file ? URL.createObjectURL(file) : "",
+        result: "",
+        checkedAt: null,
+      };
+
+      if (next.beforeFile && next.afterFile) {
+        next.status = "ready";
+      } else {
+        next.status = "pending";
+      }
+
+      return { ...prev, [orderId]: next };
+    });
+  };
+
+  const clearInspection = (orderId) => {
+    setInspections((prev) => {
+      const current = prev[orderId];
+      if (current?.beforeUrl) URL.revokeObjectURL(current.beforeUrl);
+      if (current?.afterUrl) URL.revokeObjectURL(current.afterUrl);
+      const next = { ...prev };
+      delete next[orderId];
+      return next;
+    });
+  };
+
+  const runScratchCheck = (orderId) => {
+    const current = inspections[orderId];
+    if (!current?.beforeFile || !current?.afterFile) return;
+
+    updateInspection(orderId, {
+      status: "checked",
+      result: "No visible damage detected (mock)",
+      checkedAt: Date.now(),
+    });
   };
 
   return (
@@ -495,13 +576,14 @@ function Admin() {
                     <th>End Date</th>
                     <th>Total</th>
                     <th>Status</th>
+                    <th>Inspection</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={8}
+                        colSpan={9}
                         style={{
                           textAlign: "center",
                           color: "#94a3b8",
@@ -512,61 +594,219 @@ function Admin() {
                       </td>
                     </tr>
                   ) : (
-                    orders.map((order, idx) => (
-                      <tr key={order._id}>
-                        <td style={{ color: "#94a3b8" }}>{idx + 1}</td>
-                        <td>
-                          <div style={{ fontWeight: 600 }}>
-                            {order.customerName}
-                          </div>
-                          <div
-                            style={{ fontSize: "0.75rem", color: "#64748b" }}
-                          >
-                            {order.customerEmail}
-                          </div>
-                          <div
-                            style={{ fontSize: "0.75rem", color: "#64748b" }}
-                          >
-                            {order.customerPhone}
-                          </div>
-                        </td>
-                        <td style={{ fontWeight: 500 }}>{order.itemName}</td>
-                        <td>{order.rentalDays}</td>
-                        <td>
-                          {new Date(order.startDate).toLocaleDateString()}
-                        </td>
-                        <td>{new Date(order.endDate).toLocaleDateString()}</td>
-                        <td style={{ fontWeight: 600 }}>
-                          ₹{order.totalAmount.toLocaleString()}
-                        </td>
-                        <td>
-                          <select
-                            className="form-control"
-                            style={{
-                              padding: "5px 8px",
-                              fontSize: "0.8rem",
-                              minWidth: 110,
-                            }}
-                            value={order.status}
-                            onChange={(e) =>
-                              handleOrderStatusChange(order._id, e.target.value)
-                            }
-                          >
-                            {ORDER_STATUSES.map((s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
-                            ))}
-                          </select>
-                          <span
-                            className={`status-badge status-${order.status.toLowerCase()}`}
-                            style={{ marginTop: 4, display: "block" }}
-                          >
-                            {order.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                    orders.flatMap((order, idx) => {
+                      const inspection = inspections[order._id] || {};
+                      const isOpen = openInspectionId === order._id;
+                      const status = inspection.status || "pending";
+                      const statusLabel =
+                        status === "checked"
+                          ? "Checked"
+                          : status === "ready"
+                            ? "Ready to Check"
+                            : "Pending";
+
+                      return [
+                        <tr key={order._id}>
+                          <td style={{ color: "#94a3b8" }}>{idx + 1}</td>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>
+                              {order.customerName}
+                            </div>
+                            <div
+                              style={{ fontSize: "0.75rem", color: "#64748b" }}
+                            >
+                              {order.customerEmail}
+                            </div>
+                            <div
+                              style={{ fontSize: "0.75rem", color: "#64748b" }}
+                            >
+                              {order.customerPhone}
+                            </div>
+                          </td>
+                          <td style={{ fontWeight: 500 }}>{order.itemName}</td>
+                          <td>{order.rentalDays}</td>
+                          <td>
+                            {new Date(order.startDate).toLocaleDateString()}
+                          </td>
+                          <td>
+                            {new Date(order.endDate).toLocaleDateString()}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>
+                            ₹{order.totalAmount.toLocaleString()}
+                          </td>
+                          <td>
+                            <select
+                              className="form-control"
+                              style={{
+                                padding: "5px 8px",
+                                fontSize: "0.8rem",
+                                minWidth: 110,
+                              }}
+                              value={order.status}
+                              onChange={(e) =>
+                                handleOrderStatusChange(
+                                  order._id,
+                                  e.target.value,
+                                )
+                              }
+                            >
+                              {ORDER_STATUSES.map((s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ))}
+                            </select>
+                            <span
+                              className={`status-badge status-${order.status.toLowerCase()}`}
+                              style={{ marginTop: 4, display: "block" }}
+                            >
+                              {order.status}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => toggleInspection(order._id)}
+                            >
+                              {isOpen ? "Hide" : "Inspect"}
+                            </button>
+                            <div className="inspection-status">
+                              <span
+                                className={`inspection-badge inspection-${status}`}
+                              >
+                                {statusLabel}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>,
+                        isOpen ? (
+                          <tr key={`${order._id}-inspection`}>
+                            <td colSpan={9} className="inspection-cell">
+                              <div className="inspection-panel">
+                                <div className="inspection-grid">
+                                  <div className="inspection-card">
+                                    <div className="inspection-card-header">
+                                      <div>
+                                        <p className="inspection-title">
+                                          Delivery Photo (Before)
+                                        </p>
+                                        <p className="inspection-subtitle">
+                                          Capture item condition at delivery.
+                                        </p>
+                                      </div>
+                                      <label className="btn btn-primary btn-sm">
+                                        Upload
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          capture="environment"
+                                          onChange={(e) =>
+                                            handlePhotoUpload(
+                                              order._id,
+                                              "before",
+                                              e.target.files?.[0] || null,
+                                            )
+                                          }
+                                          hidden
+                                        />
+                                      </label>
+                                    </div>
+                                    <div className="inspection-preview">
+                                      {inspection.beforeUrl ? (
+                                        <img
+                                          src={inspection.beforeUrl}
+                                          alt="Before condition"
+                                        />
+                                      ) : (
+                                        <div className="inspection-empty">
+                                          No photo uploaded
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="inspection-card">
+                                    <div className="inspection-card-header">
+                                      <div>
+                                        <p className="inspection-title">
+                                          Return Photo (After)
+                                        </p>
+                                        <p className="inspection-subtitle">
+                                          Capture item condition at return.
+                                        </p>
+                                      </div>
+                                      <label className="btn btn-primary btn-sm">
+                                        Upload
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          capture="environment"
+                                          onChange={(e) =>
+                                            handlePhotoUpload(
+                                              order._id,
+                                              "after",
+                                              e.target.files?.[0] || null,
+                                            )
+                                          }
+                                          hidden
+                                        />
+                                      </label>
+                                    </div>
+                                    <div className="inspection-preview">
+                                      {inspection.afterUrl ? (
+                                        <img
+                                          src={inspection.afterUrl}
+                                          alt="After condition"
+                                        />
+                                      ) : (
+                                        <div className="inspection-empty">
+                                          No photo uploaded
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="inspection-actions">
+                                  <div>
+                                    <p className="inspection-title">
+                                      Scratch Detection Result
+                                    </p>
+                                    <p className="inspection-subtitle">
+                                      {inspection.result ||
+                                        "Upload both photos to enable checking."}
+                                    </p>
+                                    {inspection.checkedAt && (
+                                      <p className="inspection-meta">
+                                        Checked on{" "}
+                                        {new Date(
+                                          inspection.checkedAt,
+                                        ).toLocaleString()}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="inspection-action-buttons">
+                                    <button
+                                      className="btn btn-primary btn-sm"
+                                      onClick={() => runScratchCheck(order._id)}
+                                      disabled={status !== "ready"}
+                                    >
+                                      Run Scratch Check
+                                    </button>
+                                    <button
+                                      className="btn btn-secondary btn-sm"
+                                      onClick={() => clearInspection(order._id)}
+                                    >
+                                      Clear
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : null,
+                      ].filter(Boolean);
+                    })
                   )}
                 </tbody>
               </table>
