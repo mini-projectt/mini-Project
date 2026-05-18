@@ -57,7 +57,22 @@ const SEARCH_CATEGORY_RULES = [
   },
   {
     category: "Clothing",
-    terms: ["clothing", "suit", "sherwani", "lehenga", "wedding"],
+    terms: [
+      "clothing",
+      "clothes",
+      "cloth",
+      "cloths",
+      "dress",
+      "dresses",
+      "outfit",
+      "apparel",
+      "suit",
+      "shirt",
+      "gown",
+      "sherwani",
+      "lehenga",
+      "wedding",
+    ],
   },
 ];
 
@@ -74,11 +89,31 @@ const SEARCH_KEYWORDS = [
   "scrubber",
   "ladder",
   "mixer",
+  "clothes",
+  "cloth",
+  "cloths",
+  "dress",
+  "dresses",
+  "outfit",
+  "apparel",
+  "shirt",
+  "gown",
   "suit",
   "sherwani",
   "lehenga",
   "tool",
 ];
+
+const GENERIC_CLOTHING_TERMS = new Set([
+  "clothes",
+  "cloth",
+  "cloths",
+  "dress",
+  "dresses",
+  "outfit",
+  "apparel",
+  "shirt",
+]);
 
 function escapeRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -127,7 +162,10 @@ function buildItemsRedirect(message) {
   if (category) {
     params.set("category", category);
   }
-  if (keyword) {
+  if (
+    keyword &&
+    !(category === "Clothing" && GENERIC_CLOTHING_TERMS.has(keyword))
+  ) {
     params.set("search", keyword);
   }
   params.set("available", "true");

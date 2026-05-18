@@ -98,7 +98,15 @@ def train_and_save_model(model_path: str = MODEL_PATH):
 
 def load_or_train_model(model_path: str = MODEL_PATH):
     if os.path.exists(model_path):
-        return joblib.load(model_path)
+        try:
+            model_mtime = os.path.getmtime(model_path)
+            intents_mtime = os.path.getmtime(INTENTS_PATH)
+        except OSError:
+            model_mtime = 0
+            intents_mtime = 0
+
+        if model_mtime >= intents_mtime:
+            return joblib.load(model_path)
     return train_and_save_model(model_path)
 
 

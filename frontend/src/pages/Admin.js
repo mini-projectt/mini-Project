@@ -31,6 +31,49 @@ const CATEGORIES = [
 ];
 const CONDITIONS = ["Excellent", "Good", "Fair"];
 const ORDER_STATUSES = ["Pending", "Confirmed", "Returned", "Cancelled"];
+const SIDES = [
+  { key: "front", label: "Front" },
+  { key: "back", label: "Back" },
+  { key: "left", label: "Left" },
+  { key: "right", label: "Right" },
+];
+const PHOTO_PHASES = [
+  { key: "before", label: "Delivery Photo", timing: "delivery" },
+  { key: "after", label: "Return Photo", timing: "return" },
+];
+
+const buildEmptyInspection = () => ({
+  beforeFrontFile: null,
+  beforeFrontUrl: "",
+  beforeBackFile: null,
+  beforeBackUrl: "",
+  beforeLeftFile: null,
+  beforeLeftUrl: "",
+  beforeRightFile: null,
+  beforeRightUrl: "",
+  afterFrontFile: null,
+  afterFrontUrl: "",
+  afterBackFile: null,
+  afterBackUrl: "",
+  afterLeftFile: null,
+  afterLeftUrl: "",
+  afterRightFile: null,
+  afterRightUrl: "",
+  status: "pending",
+  result: "",
+  metrics: "",
+  metricsRaw: null,
+  checkedAt: null,
+});
+
+const getPhaseKeys = (phaseKey, sideKey) => {
+  const normalized = String(sideKey || "");
+  const cap = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  return {
+    fileKey: `${phaseKey}${cap}File`,
+    urlKey: `${phaseKey}${cap}Url`,
+  };
+};
 
 function Admin() {
   const [tab, setTab] = useState("items"); // 'items' | 'add' | 'orders'
@@ -178,38 +221,26 @@ function Admin() {
 
   const updateInspection = (orderId, patch) => {
     setInspections((prev) => {
-      const current = prev[orderId] || {
-        beforeFile: null,
-        beforeUrl: "",
-        afterFile: null,
-        afterUrl: "",
-        status: "pending",
-        result: "",
-        metrics: "",
-        metricsRaw: null,
-        checkedAt: null,
-      };
+      const current = prev[orderId] || buildEmptyInspection();
       const next = { ...current, ...patch };
       return { ...prev, [orderId]: next };
     });
   };
 
-  const handlePhotoUpload = (orderId, phase, file) => {
-    const fileKey = phase === "before" ? "beforeFile" : "afterFile";
-    const urlKey = phase === "before" ? "beforeUrl" : "afterUrl";
+  const isInspectionReady = (inspection) => {
+    return PHOTO_PHASES.every((phase) =>
+      SIDES.every((side) => {
+        const { fileKey } = getPhaseKeys(phase.key, side.key);
+        return Boolean(inspection?.[fileKey]);
+      }),
+    );
+  };
+
+  const handlePhotoUpload = (orderId, phaseKey, sideKey, file) => {
+    const { fileKey, urlKey } = getPhaseKeys(phaseKey, sideKey);
 
     setInspections((prev) => {
-      const current = prev[orderId] || {
-        beforeFile: null,
-        beforeUrl: "",
-        afterFile: null,
-        afterUrl: "",
-        status: "pending",
-        result: "",
-        metrics: "",
-        metricsRaw: null,
-        checkedAt: null,
-      };
+      const current = prev[orderId] || buildEmptyInspection();
 
       if (current[urlKey]) {
         URL.revokeObjectURL(current[urlKey]);
@@ -225,11 +256,7 @@ function Admin() {
         checkedAt: null,
       };
 
-      if (next.beforeFile && next.afterFile) {
-        next.status = "ready";
-      } else {
-        next.status = "pending";
-      }
+      next.status = isInspectionReady(next) ? "ready" : "pending";
 
       return { ...prev, [orderId]: next };
     });
@@ -238,8 +265,16 @@ function Admin() {
   const clearInspection = (orderId) => {
     setInspections((prev) => {
       const current = prev[orderId];
-      if (current?.beforeUrl) URL.revokeObjectURL(current.beforeUrl);
-      if (current?.afterUrl) URL.revokeObjectURL(current.afterUrl);
+      if (current) {
+        PHOTO_PHASES.forEach((phase) => {
+          SIDES.forEach((side) => {
+            const { urlKey } = getPhaseKeys(phase.key, side.key);
+            if (current[urlKey]) {
+              URL.revokeObjectURL(current[urlKey]);
+            }
+          });
+        });
+      }
       const next = { ...prev };
       delete next[orderId];
       return next;
@@ -261,12 +296,60 @@ function Admin() {
     if (Object.prototype.hasOwnProperty.call(metrics, "similarity_score")) {
       parts.push(`similarity_score: ${metrics.similarity_score}`);
     }
+    if (metrics.scores && typeof metrics.scores === "object") {
+      const scoreText = ["Front", "Back", "Left", "Right"]
+        .filter((side) => typeof metrics.scores[side] === "number")
+        .map((side) => `${side}: ${metrics.scores[side]}%`)
+        .join(", ");
+      if (scoreText) {
+        parts.push(`scores: ${scoreText}`);
+      }
+    }
     if (parts.length > 0) return parts.join(" | ");
     return JSON.stringify(metrics);
   };
 
   const clampValue = (value, min, max) => {
     return Math.min(Math.max(value, min), max);
+  };
+
+  const getSideScores = (metrics) => {
+    if (!metrics || typeof metrics !== "object") return null;
+    const rawScores = metrics.scores;
+    if (!rawScores || typeof rawScores !== "object") return null;
+
+    const pick = (primary, fallback) => {
+      const value = rawScores[primary] ?? rawScores[fallback];
+      if (typeof value !== "number" || Number.isNaN(value)) return null;
+      return clampValue(value, 0, 100);
+    };
+
+    return {
+      front: pick("Front", "front"),
+      back: pick("Back", "back"),
+      left: pick("Left", "left"),
+      right: pick("Right", "right"),
+    };
+  };
+
+  const calculateAverageSimilarity = (sideScores) => {
+    if (!sideScores || typeof sideScores !== "object") return null;
+    const values = Object.values(sideScores).filter(
+      (value) => typeof value === "number",
+    );
+    if (values.length === 0) return null;
+    const average =
+      values.reduce((sum, value) => sum + value, 0) / values.length;
+    return Number(average.toFixed(2));
+  };
+
+  const calculateDamageCountFromScores = (sideScores, threshold = 90) => {
+    if (!sideScores || typeof sideScores !== "object") return null;
+    const values = Object.values(sideScores).filter(
+      (value) => typeof value === "number",
+    );
+    if (values.length === 0) return null;
+    return values.filter((value) => value < threshold).length;
   };
 
   const calculateDamagePercent = (similarityScore) => {
@@ -295,7 +378,7 @@ function Admin() {
 
   const runScratchCheck = async (orderId) => {
     const current = inspections[orderId];
-    if (!current?.beforeFile || !current?.afterFile) return;
+    if (!isInspectionReady(current)) return;
 
     updateInspection(orderId, {
       status: "checking",
@@ -306,16 +389,29 @@ function Admin() {
     });
 
     try {
-      const res = await verifyReturnImage(
-        orderId,
-        current.beforeFile,
-        current.afterFile,
-      );
+      const beforeImages = {
+        front: current.beforeFrontFile,
+        back: current.beforeBackFile,
+        left: current.beforeLeftFile,
+        right: current.beforeRightFile,
+      };
+      const afterImages = {
+        front: current.afterFrontFile,
+        back: current.afterBackFile,
+        left: current.afterLeftFile,
+        right: current.afterRightFile,
+      };
+      const res = await verifyReturnImage(orderId, beforeImages, afterImages);
+      const metrics = res.data?.metrics || null;
       const message = res.data?.message || "";
-      const hasDamage = /damage\s*detected/i.test(message);
+      const hasDamage =
+        typeof metrics?.damage_detected === "boolean"
+          ? metrics.damage_detected
+          : /damage\s*detected/i.test(message);
       const resultText = hasDamage ? "Damage Detected" : "No Damage";
-      const metricsText = formatMetrics(res.data?.metrics);
-      const similarityScore = res.data?.metrics?.similarity_score;
+      const metricsText = formatMetrics(metrics);
+      const sideScores = getSideScores(metrics);
+      const similarityScore = calculateAverageSimilarity(sideScores);
       const damagePercent = calculateDamagePercent(similarityScore);
       const deductionPercent = calculateDeductionPercent(damagePercent);
       const order = orders.find((entry) => entry._id === orderId);
@@ -334,7 +430,7 @@ function Admin() {
         status: "checked",
         result: resultText,
         metrics: metricsText,
-        metricsRaw: res.data?.metrics || null,
+        metricsRaw: metrics,
         checkedAt: Date.now(),
       });
 
@@ -729,10 +825,14 @@ function Admin() {
                       const damageDetected =
                         inspection.metricsRaw?.damage_detected ??
                         /damage\s*detected/i.test(inspection.result || "");
+                      const sideScores = getSideScores(inspection.metricsRaw);
                       const similarityScore =
-                        inspection.metricsRaw?.similarity_score ?? null;
-                      const damageCount =
-                        inspection.metricsRaw?.damage_count ?? null;
+                        calculateAverageSimilarity(sideScores);
+                      const damageCount = Array.isArray(
+                        inspection.metricsRaw?.damaged_sides,
+                      )
+                        ? inspection.metricsRaw.damaged_sides.length
+                        : calculateDamageCountFromScores(sideScores);
                       const orderCollateral =
                         typeof order.collateralAmount === "number"
                           ? order.collateralAmount
@@ -776,6 +876,16 @@ function Admin() {
                             >
                               {order.customerPhone}
                             </div>
+                            {order.customerAddress && (
+                              <div
+                                style={{
+                                  fontSize: "0.75rem",
+                                  color: "#64748b",
+                                }}
+                              >
+                                {order.customerAddress}
+                              </div>
+                            )}
                           </td>
                           <td style={{ fontWeight: 500 }}>{order.itemName}</td>
                           <td>{order.rentalDays}</td>
@@ -838,87 +948,64 @@ function Admin() {
                             <td colSpan={9} className="inspection-cell">
                               <div className="inspection-panel">
                                 <div className="inspection-grid">
-                                  <div className="inspection-card">
-                                    <div className="inspection-card-header">
-                                      <div>
-                                        <p className="inspection-title">
-                                          Delivery Photo (Before)
-                                        </p>
-                                        <p className="inspection-subtitle">
-                                          Capture item condition at delivery.
-                                        </p>
-                                      </div>
-                                      <label className="btn btn-primary btn-sm">
-                                        Upload
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          capture="environment"
-                                          onChange={(e) =>
-                                            handlePhotoUpload(
-                                              order._id,
-                                              "before",
-                                              e.target.files?.[0] || null,
-                                            )
-                                          }
-                                          hidden
-                                        />
-                                      </label>
-                                    </div>
-                                    <div className="inspection-preview">
-                                      {inspection.beforeUrl ? (
-                                        <img
-                                          src={inspection.beforeUrl}
-                                          alt="Before condition"
-                                        />
-                                      ) : (
-                                        <div className="inspection-empty">
-                                          No photo uploaded
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
+                                  {PHOTO_PHASES.map((phase) =>
+                                    SIDES.map((side) => {
+                                      const { urlKey } = getPhaseKeys(
+                                        phase.key,
+                                        side.key,
+                                      );
+                                      const previewUrl = inspection[urlKey];
 
-                                  <div className="inspection-card">
-                                    <div className="inspection-card-header">
-                                      <div>
-                                        <p className="inspection-title">
-                                          Return Photo (After)
-                                        </p>
-                                        <p className="inspection-subtitle">
-                                          Capture item condition at return.
-                                        </p>
-                                      </div>
-                                      <label className="btn btn-primary btn-sm">
-                                        Upload
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          capture="environment"
-                                          onChange={(e) =>
-                                            handlePhotoUpload(
-                                              order._id,
-                                              "after",
-                                              e.target.files?.[0] || null,
-                                            )
-                                          }
-                                          hidden
-                                        />
-                                      </label>
-                                    </div>
-                                    <div className="inspection-preview">
-                                      {inspection.afterUrl ? (
-                                        <img
-                                          src={inspection.afterUrl}
-                                          alt="After condition"
-                                        />
-                                      ) : (
-                                        <div className="inspection-empty">
-                                          No photo uploaded
+                                      return (
+                                        <div
+                                          key={`${phase.key}-${side.key}`}
+                                          className="inspection-card"
+                                        >
+                                          <div className="inspection-card-header">
+                                            <div>
+                                              <p className="inspection-title">
+                                                {phase.label} ({side.label})
+                                              </p>
+                                              <p className="inspection-subtitle">
+                                                Capture the{" "}
+                                                {side.label.toLowerCase()} side
+                                                at {phase.timing}.
+                                              </p>
+                                            </div>
+                                            <label className="btn btn-primary btn-sm">
+                                              Upload
+                                              <input
+                                                type="file"
+                                                accept="image/*"
+                                                capture="environment"
+                                                onChange={(e) =>
+                                                  handlePhotoUpload(
+                                                    order._id,
+                                                    phase.key,
+                                                    side.key,
+                                                    e.target.files?.[0] || null,
+                                                  )
+                                                }
+                                                hidden
+                                              />
+                                            </label>
+                                          </div>
+                                          <div className="inspection-preview">
+                                            {previewUrl ? (
+                                              <img
+                                                src={previewUrl}
+                                                alt={`${phase.label} ${side.label}`}
+                                              />
+                                            ) : (
+                                              <div className="inspection-empty">
+                                                No photo uploaded
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
-                                      )}
-                                    </div>
-                                  </div>
+                                      );
+                                    }),
+                                  )}
                                 </div>
 
                                 <div className="inspection-actions">
@@ -930,7 +1017,7 @@ function Admin() {
                                         </p>
                                         <p className="inspection-result-message">
                                           {inspection.result ||
-                                            "Upload both photos to enable checking."}
+                                            "Upload all 8 side photos to enable checking."}
                                         </p>
                                       </div>
                                       {status === "checked" && (
@@ -951,7 +1038,7 @@ function Admin() {
                                     <div className="inspection-result-grid">
                                       <div className="inspection-result-item">
                                         <span className="inspection-result-label">
-                                          Similarity
+                                          Avg Similarity
                                         </span>
                                         <span className="inspection-result-value">
                                           {typeof similarityScore === "number"
@@ -975,6 +1062,46 @@ function Admin() {
                                         </span>
                                         <span className="inspection-result-value">
                                           {inspection.metrics || "-"}
+                                        </span>
+                                      </div>
+                                      <div className="inspection-result-item">
+                                        <span className="inspection-result-label">
+                                          Front
+                                        </span>
+                                        <span className="inspection-result-value">
+                                          {typeof sideScores?.front === "number"
+                                            ? `${sideScores.front}%`
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                      <div className="inspection-result-item">
+                                        <span className="inspection-result-label">
+                                          Back
+                                        </span>
+                                        <span className="inspection-result-value">
+                                          {typeof sideScores?.back === "number"
+                                            ? `${sideScores.back}%`
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                      <div className="inspection-result-item">
+                                        <span className="inspection-result-label">
+                                          Left
+                                        </span>
+                                        <span className="inspection-result-value">
+                                          {typeof sideScores?.left === "number"
+                                            ? `${sideScores.left}%`
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                      <div className="inspection-result-item">
+                                        <span className="inspection-result-label">
+                                          Right
+                                        </span>
+                                        <span className="inspection-result-value">
+                                          {typeof sideScores?.right === "number"
+                                            ? `${sideScores.right}%`
+                                            : "-"}
                                         </span>
                                       </div>
                                       <div className="inspection-result-item">
@@ -1054,8 +1181,7 @@ function Admin() {
                                         }
                                         disabled={
                                           status === "checking" ||
-                                          !inspection.beforeFile ||
-                                          !inspection.afterFile
+                                          !isInspectionReady(inspection)
                                         }
                                       >
                                         {status === "checking"

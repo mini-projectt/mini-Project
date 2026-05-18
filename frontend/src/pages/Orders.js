@@ -156,6 +156,15 @@ function Orders() {
                     {order.customerName} • {order.customerEmail}
                   </span>
                 </div>
+
+                {order.customerAddress && (
+                  <div className="order-detail-row">
+                    <span className="detail-label">Address:</span>
+                    <span className="detail-value">
+                      {order.customerAddress}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {order.status === "Confirmed" && (

@@ -52,13 +52,19 @@ export const createOrder = (data) => API.post("/orders", data);
 export const updateOrder = (id, data) => API.put(`/orders/${id}`, data);
 
 // Scanner (scratch detection)
-export const verifyReturnImage = (orderId, beforeImage, afterImage) => {
+export const verifyReturnImage = (orderId, beforeImages, afterImages) => {
   const formData = new FormData();
   formData.append("orderId", orderId);
-  formData.append("beforeImage", beforeImage);
-  formData.append("afterImage", afterImage);
+  formData.append("before_front", beforeImages.front);
+  formData.append("before_back", beforeImages.back);
+  formData.append("before_left", beforeImages.left);
+  formData.append("before_right", beforeImages.right);
+  formData.append("after_front", afterImages.front);
+  formData.append("after_back", afterImages.back);
+  formData.append("after_left", afterImages.left);
+  formData.append("after_right", afterImages.right);
 
-  return API.post("/scanner/verify", formData, {
+  return API.post("/scanner/verify-360", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
 };

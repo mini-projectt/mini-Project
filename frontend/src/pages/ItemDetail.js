@@ -13,6 +13,16 @@ function ItemDetail() {
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderError, setOrderError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("card");
+  const [paymentForm, setPaymentForm] = useState({
+    cardName: "",
+    cardNumber: "",
+    expiry: "",
+    cvv: "",
+  });
 
   // Reviews state
   const [reviews, setReviews] = useState([]);
@@ -33,6 +43,7 @@ function ItemDetail() {
     customerName: "",
     customerEmail: "",
     customerPhone: "",
+    customerAddress: "",
     startDate: today,
     rentalDays: 1,
   });
@@ -71,23 +82,76 @@ function ItemDetail() {
   };
 
   const totalAmount = item ? item.pricePerDay * Number(form.rentalDays) : 0;
+  const totalPayable = item ? totalAmount + item.depositAmount : 0;
+  const qrPayload = `rentease:${id}:${totalPayable}`;
+  const qrSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220">
+  <rect width="220" height="220" fill="#ffffff"/>
+  <rect x="12" y="12" width="56" height="56" fill="#0b1f1a"/>
+  <rect x="20" y="20" width="40" height="40" fill="#ffffff"/>
+  <rect x="28" y="28" width="24" height="24" fill="#0b1f1a"/>
+  <rect x="152" y="12" width="56" height="56" fill="#0b1f1a"/>
+  <rect x="160" y="20" width="40" height="40" fill="#ffffff"/>
+  <rect x="168" y="28" width="24" height="24" fill="#0b1f1a"/>
+  <rect x="12" y="152" width="56" height="56" fill="#0b1f1a"/>
+  <rect x="20" y="160" width="40" height="40" fill="#ffffff"/>
+  <rect x="28" y="168" width="24" height="24" fill="#0b1f1a"/>
+  <rect x="92" y="92" width="16" height="16" fill="#0b1f1a"/>
+  <rect x="112" y="92" width="16" height="16" fill="#0b1f1a"/>
+  <rect x="132" y="92" width="16" height="16" fill="#0b1f1a"/>
+  <rect x="92" y="112" width="16" height="16" fill="#0b1f1a"/>
+  <rect x="132" y="112" width="16" height="16" fill="#0b1f1a"/>
+  <rect x="92" y="132" width="16" height="16" fill="#0b1f1a"/>
+  <rect x="112" y="132" width="16" height="16" fill="#0b1f1a"/>
+  <rect x="152" y="132" width="16" height="16" fill="#0b1f1a"/>
+  <rect x="112" y="152" width="16" height="16" fill="#0b1f1a"/>
+  <rect x="132" y="152" width="16" height="16" fill="#0b1f1a"/>
+  <rect x="152" y="152" width="16" height="16" fill="#0b1f1a"/>
+  <text x="110" y="208" font-size="10" text-anchor="middle" fill="#6f7f79">${qrPayload}</text>
+  </svg>`;
+  const qrDataUri = `data:image/svg+xml;utf8,${encodeURIComponent(qrSvg)}`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrPayload)}`;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setOrderError("");
-    setOrderSuccess(false);
-
-    if (!form.customerName || !form.customerEmail || !form.customerPhone) {
-      setOrderError("Please fill in all your details.");
-      return;
+  const validateOrderForm = () => {
+    if (
+      !form.customerName ||
+      !form.customerEmail ||
+      !form.customerPhone ||
+      !form.customerAddress
+    ) {
+      return "Please fill in all your details.";
     }
     if (form.rentalDays < 1) {
-      setOrderError("Rental days must be at least 1.");
-      return;
+      return "Rental days must be at least 1.";
     }
+    if (!item?.available) {
+      return "This item is currently unavailable for rent.";
+    }
+    return "";
+  };
 
+  const resetPaymentForm = () => {
+    setPaymentForm({
+      cardName: "",
+      cardNumber: "",
+      expiry: "",
+      cvv: "",
+    });
+    setPaymentError("");
+    setPaymentMethod("card");
+  };
+
+  const handlePaymentChange = (e) => {
+    setPaymentForm({ ...paymentForm, [e.target.name]: e.target.value });
+  };
+
+  const simulatePayment = () =>
+    new Promise((resolve) => {
+      setTimeout(() => resolve({ status: "success" }), 1200);
+    });
+
+  const placeOrder = async () => {
+    setSubmitting(true);
     try {
-      setSubmitting(true);
       await createOrder({
         ...form,
         item: id,
@@ -98,17 +162,87 @@ function ItemDetail() {
         customerName: "",
         customerEmail: "",
         customerPhone: "",
+        customerAddress: "",
         startDate: today,
         rentalDays: 1,
       });
-      // Refresh item to update availability
       fetchItem();
     } catch (err) {
-      setOrderError(
-        err.response?.data?.error || "Failed to place order. Please try again.",
-      );
+      const message =
+        err.response?.data?.error || "Failed to place order. Please try again.";
+      setOrderError(message);
+      throw new Error(message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setOrderError("");
+    setOrderSuccess(false);
+
+    const errorMessage = validateOrderForm();
+    if (errorMessage) {
+      setOrderError(errorMessage);
+      return;
+    }
+
+    resetPaymentForm();
+    setShowPayment(true);
+  };
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    setPaymentError("");
+
+    const cardNumber = paymentForm.cardNumber.replace(/\s+/g, "");
+    if (!paymentForm.cardName.trim()) {
+      setPaymentError("Cardholder name is required.");
+      return;
+    }
+    if (!/^\d{12,19}$/.test(cardNumber)) {
+      setPaymentError("Enter a valid card number.");
+      return;
+    }
+    if (!/^(0[1-9]|1[0-2])\/(\d{2})$/.test(paymentForm.expiry)) {
+      setPaymentError("Expiry must be in MM/YY format.");
+      return;
+    }
+    if (!/^\d{3,4}$/.test(paymentForm.cvv)) {
+      setPaymentError("Enter a valid CVV.");
+      return;
+    }
+
+    setPaymentProcessing(true);
+    try {
+      await simulatePayment();
+      await placeOrder();
+      setShowPayment(false);
+      resetPaymentForm();
+    } catch (err) {
+      setPaymentError(
+        err.message || "Payment failed. Please try again in a moment.",
+      );
+    } finally {
+      setPaymentProcessing(false);
+    }
+  };
+
+  const handleQrDone = async () => {
+    setPaymentError("");
+    setPaymentProcessing(true);
+    try {
+      await simulatePayment();
+      await placeOrder();
+      setShowPayment(false);
+      resetPaymentForm();
+    } catch (err) {
+      setPaymentError(
+        err.message || "Payment failed. Please try again in a moment.",
+      );
+    } finally {
+      setPaymentProcessing(false);
     }
   };
 
@@ -272,6 +406,19 @@ function ItemDetail() {
                   </div>
                 </div>
 
+                <div className="form-group">
+                  <label>Address</label>
+                  <textarea
+                    name="customerAddress"
+                    className="form-control"
+                    placeholder="Enter your delivery or pickup address"
+                    value={form.customerAddress}
+                    onChange={handleChange}
+                    rows={3}
+                    required
+                  />
+                </div>
+
                 <div className="form-row">
                   <div className="form-group">
                     <label>Start Date</label>
@@ -315,9 +462,7 @@ function ItemDetail() {
                   </div>
                   <div className="order-summary-row total">
                     <span>Total Payable</span>
-                    <span>
-                      ₹{(totalAmount + item.depositAmount).toLocaleString()}
-                    </span>
+                    <span>₹{totalPayable.toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -326,8 +471,12 @@ function ItemDetail() {
                   className="btn btn-primary btn-full"
                   disabled={submitting}
                 >
-                  {submitting ? "Placing Order..." : "Rent Now"}
+                  {submitting ? "Placing Order..." : "Continue to Payment"}
                 </button>
+                <p className="payment-note">
+                  This is a dummy payment flow. Use test card 4242 4242 4242
+                  4242 with any future expiry and CVV.
+                </p>
               </form>
             </div>
           ) : (
@@ -337,6 +486,151 @@ function ItemDetail() {
           )}
         </div>
       </div>
+
+      {showPayment && (
+        <div className="payment-overlay" role="dialog" aria-modal="true">
+          <div className="payment-modal">
+            <div className="payment-modal-header">
+              <h3>Complete Payment</h3>
+              <button
+                type="button"
+                className="payment-close"
+                onClick={() => setShowPayment(false)}
+                disabled={paymentProcessing}
+                aria-label="Close payment dialog"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="payment-summary">
+              <div>
+                <span>Item</span>
+                <strong>{item.name}</strong>
+              </div>
+              <div>
+                <span>Total payable</span>
+                <strong>₹{totalPayable.toLocaleString()}</strong>
+              </div>
+            </div>
+
+            {paymentError && (
+              <div className="alert alert-error">{paymentError}</div>
+            )}
+
+            <div className="payment-methods">
+              <button
+                type="button"
+                className={`payment-method-btn ${paymentMethod === "card" ? "active" : ""}`}
+                onClick={() => setPaymentMethod("card")}
+                disabled={paymentProcessing}
+              >
+                Card
+              </button>
+              <button
+                type="button"
+                className={`payment-method-btn ${paymentMethod === "qr" ? "active" : ""}`}
+                onClick={() => setPaymentMethod("qr")}
+                disabled={paymentProcessing}
+              >
+                QR Code
+              </button>
+            </div>
+
+            {paymentMethod === "card" ? (
+              <form onSubmit={handlePaymentSubmit} autoComplete="off">
+                <div className="form-group">
+                  <label>Cardholder Name</label>
+                  <input
+                    type="text"
+                    name="cardName"
+                    className="form-control"
+                    placeholder="Name on card"
+                    value={paymentForm.cardName}
+                    onChange={handlePaymentChange}
+                    autoComplete="off"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Card Number</label>
+                  <input
+                    type="text"
+                    name="cardNumber"
+                    className="form-control"
+                    placeholder="4242 4242 4242 4242"
+                    value={paymentForm.cardNumber}
+                    onChange={handlePaymentChange}
+                    autoComplete="new-password"
+                    inputMode="numeric"
+                    required
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Expiry (MM/YY)</label>
+                    <input
+                      type="text"
+                      name="expiry"
+                      className="form-control"
+                      placeholder="08/28"
+                      value={paymentForm.expiry}
+                      onChange={handlePaymentChange}
+                      autoComplete="new-password"
+                      inputMode="numeric"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>CVV</label>
+                    <input
+                      type="password"
+                      name="cvv"
+                      className="form-control"
+                      placeholder="123"
+                      value={paymentForm.cvv}
+                      onChange={handlePaymentChange}
+                      autoComplete="new-password"
+                      inputMode="numeric"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-full"
+                  disabled={paymentProcessing}
+                >
+                  {paymentProcessing ? "Processing..." : "Pay and Place Order"}
+                </button>
+              </form>
+            ) : (
+              <div className="payment-qr">
+                <img
+                  src={qrImageUrl}
+                  alt="Dummy payment QR code"
+                  className="payment-qr-code"
+                  onError={(e) => {
+                    e.currentTarget.src = qrDataUri;
+                  }}
+                />
+                <p className="payment-qr-note">
+                  Scan this dummy QR to simulate payment, then press Done.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-full"
+                  onClick={handleQrDone}
+                  disabled={paymentProcessing}
+                >
+                  {paymentProcessing ? "Processing..." : "Done"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Reviews Section */}
       <div className="reviews-section">

@@ -36,6 +36,7 @@ router.post("/", authenticate, async (req, res) => {
       customerName,
       customerEmail,
       customerPhone,
+      customerAddress,
     } = req.body;
 
     const item = await Item.findById(itemId);
@@ -55,6 +56,7 @@ router.post("/", authenticate, async (req, res) => {
       customerName: customerName || req.user.name,
       customerEmail: customerEmail || req.user.email,
       customerPhone: customerPhone || req.user.phone,
+      customerAddress,
       item: itemId,
       itemName: item.name,
       rentalDays,

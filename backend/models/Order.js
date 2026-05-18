@@ -6,6 +6,7 @@ const orderSchema = new mongoose.Schema(
     customerName: { type: String, required: true, trim: true },
     customerEmail: { type: String, required: true, trim: true },
     customerPhone: { type: String, required: true, trim: true },
+    customerAddress: { type: String, required: true, trim: true },
     item: { type: mongoose.Schema.Types.ObjectId, ref: "Item", required: true },
     itemName: { type: String, required: true },
     rentalDays: { type: Number, required: true, min: 1 },

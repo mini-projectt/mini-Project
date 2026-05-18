@@ -166,8 +166,7 @@ const items = [
     depositAmount: 1800,
     available: true,
     quantity: 4,
-    imageUrl:
-      "https://images.unsplash.com/photo-1581147036324-c47a03a81d48?w=400",
+    imageUrl: "/images/Cordless%20Impact%20Driver.jpeg",
     condition: "Excellent",
   },
   {
@@ -179,8 +178,7 @@ const items = [
     depositAmount: 2200,
     available: true,
     quantity: 3,
-    imageUrl:
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400",
+    imageUrl: "/images/Tile%20Cutter%20Machine.jpeg",
     condition: "Good",
   },
   {
@@ -192,8 +190,7 @@ const items = [
     depositAmount: 2600,
     available: true,
     quantity: 3,
-    imageUrl:
-      "https://images.unsplash.com/photo-1594224457860-2fb4f4b58b89?w=400",
+    imageUrl: "/images/Wet%20and%20Dry%20Vacuum%20Cleaner.jpeg",
     condition: "Excellent",
   },
   {
@@ -205,8 +202,7 @@ const items = [
     depositAmount: 4500,
     available: true,
     quantity: 2,
-    imageUrl:
-      "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=400",
+    imageUrl: "/images/Industrial%20Floor%20Scrubber.jpeg",
     condition: "Good",
   },
   {
@@ -218,8 +214,7 @@ const items = [
     depositAmount: 2800,
     available: true,
     quantity: 2,
-    imageUrl:
-      "https://images.unsplash.com/photo-1563453392212-326f5e854473?w=400",
+    imageUrl: "/images/Portable%20Air%20Compressor.jpeg",
     condition: "Good",
   },
   {
@@ -231,8 +226,7 @@ const items = [
     depositAmount: 5000,
     available: true,
     quantity: 2,
-    imageUrl:
-      "https://images.unsplash.com/photo-1566241978974-df6f3f8f6f65?w=400",
+    imageUrl: "/images/Inverter%20Welding%20Machine.jpeg",
     condition: "Good",
   },
   {
@@ -244,7 +238,7 @@ const items = [
     depositAmount: 3800,
     available: true,
     quantity: 2,
-    imageUrl: "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=400",
+    imageUrl: "/images/Diesel%20Water%20Pump%20(2%20HP).jpeg",
     condition: "Good",
   },
   {
@@ -256,8 +250,7 @@ const items = [
     depositAmount: 6000,
     available: true,
     quantity: 2,
-    imageUrl:
-      "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400",
+    imageUrl: "/images/Designer%20Bridal%20Lehenga.jpeg",
     condition: "Excellent",
   },
   {
@@ -269,7 +262,7 @@ const items = [
     depositAmount: 1700,
     available: true,
     quantity: 3,
-    imageUrl: "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=400",
+    imageUrl: "/images/Laser%20Level%20with%20Tripod.jpeg",
     condition: "Excellent",
   },
   {
@@ -281,8 +274,7 @@ const items = [
     depositAmount: 4200,
     available: true,
     quantity: 2,
-    imageUrl:
-      "https://images.unsplash.com/photo-1509395176047-4a66953fd231?w=400",
+    imageUrl: "/images/LED%20Flood%20Light%20Tower.jpeg",
     condition: "Good",
   },
   {
@@ -294,8 +286,7 @@ const items = [
     depositAmount: 600,
     available: true,
     quantity: 10,
-    imageUrl:
-      "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=400",
+    imageUrl: "/images/Safety%20Jacket%20(Hi-Vis).jpeg",
     condition: "Good",
   },
   {
@@ -320,7 +311,7 @@ const items = [
     depositAmount: 800,
     available: true,
     quantity: 6,
-    imageUrl: "https://images.unsplash.com/photo-1547496502-affa22d38842?w=400",
+    imageUrl: "/images/Chef%20Uniform%20Set.jpeg",
     condition: "Excellent",
   },
   {
@@ -331,8 +322,7 @@ const items = [
     depositAmount: 700,
     available: true,
     quantity: 6,
-    imageUrl:
-      "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400",
+    imageUrl: "/images/Winter%20Jacket%20(Thermal).jpeg",
     condition: "Good",
   },
   {
@@ -343,8 +333,7 @@ const items = [
     depositAmount: 1200,
     available: true,
     quantity: 5,
-    imageUrl:
-      "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400",
+    imageUrl: "/images/Traditional%20Kurta%20Set%20.webp",
     condition: "Excellent",
   },
   {
@@ -355,8 +344,7 @@ const items = [
     depositAmount: 2000,
     available: true,
     quantity: 3,
-    imageUrl:
-      "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=400",
+    imageUrl: "/images/Circular%20Saw%20(7-1:4%20inch).jpeg",
     condition: "Good",
   },
   {
@@ -368,7 +356,7 @@ const items = [
     depositAmount: 1600,
     available: true,
     quantity: 3,
-    imageUrl: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=400",
+    imageUrl: "/images/Jigsaw%20(Variable%20Speed)%20.jpeg",
     condition: "Good",
   },
   {
@@ -380,8 +368,7 @@ const items = [
     depositAmount: 1200,
     available: true,
     quantity: 4,
-    imageUrl:
-      "https://images.unsplash.com/photo-1586864387967-d02ef85d93e8?w=400",
+    imageUrl: "/images/Heat%20Gun.jpeg",
     condition: "Good",
   },
   {
@@ -392,8 +379,7 @@ const items = [
     depositAmount: 1400,
     available: true,
     quantity: 4,
-    imageUrl:
-      "https://images.unsplash.com/photo-1585123334904-845d60e97b29?w=400",
+    imageUrl: "/images/Rotary%20Tool%20Kit.jpeg",
     condition: "Excellent",
   },
   {
@@ -404,8 +390,7 @@ const items = [
     depositAmount: 1700,
     available: true,
     quantity: 2,
-    imageUrl:
-      "https://images.unsplash.com/photo-1581091012184-5c7f1a5f1f0a?w=400",
+    imageUrl: "/images/Electric%20Planer%20.jpeg",
     condition: "Good",
   },
   {
@@ -416,8 +401,7 @@ const items = [
     depositAmount: 3200,
     available: true,
     quantity: 2,
-    imageUrl:
-      "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=400",
+    imageUrl: "/images/Water%20Transfer%20Pump%20(1.5%20HP.jpeg",
     condition: "Good",
   },
   {
@@ -428,7 +412,7 @@ const items = [
     depositAmount: 2100,
     available: true,
     quantity: 3,
-    imageUrl: "https://images.unsplash.com/photo-1560347876-aeef00ee58a1?w=400",
+    imageUrl: "/images/Sump%20Pump%20(0.75%20HP).jpeg",
     condition: "Good",
   },
   {
@@ -440,7 +424,7 @@ const items = [
     depositAmount: 4500,
     available: true,
     quantity: 2,
-    imageUrl: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=400",
+    imageUrl: "/images/Scaffolding%20Set%20(10%20ft).webp",
     condition: "Good",
   },
   {
@@ -452,8 +436,7 @@ const items = [
     depositAmount: 3500,
     available: true,
     quantity: 2,
-    imageUrl:
-      "https://images.unsplash.com/photo-1497366216548-37526070297c?w=400",
+    imageUrl: "/images/Concrete%20Vibrator.jpeg",
     condition: "Good",
   },
   {
@@ -465,8 +448,7 @@ const items = [
     depositAmount: 3000,
     available: true,
     quantity: 3,
-    imageUrl:
-      "https://images.unsplash.com/photo-1495567720989-cebdbdd97913?w=400",
+    imageUrl: "/images/Paint%20Sprayer.jpeg",
     condition: "Excellent",
   },
   {
@@ -478,8 +460,7 @@ const items = [
     depositAmount: 900,
     available: true,
     quantity: 5,
-    imageUrl:
-      "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400",
+    imageUrl: "/images/Wheelbarrow%20(Heavy%20Duty).jpeg",
     condition: "Good",
   },
   {
@@ -490,8 +471,7 @@ const items = [
     depositAmount: 1200,
     available: true,
     quantity: 4,
-    imageUrl:
-      "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?w=400",
+    imageUrl: "/images/Tile%20Adhesive%20Mixer%20.jpeg",
     condition: "Good",
   },
   {
@@ -502,8 +482,7 @@ const items = [
     depositAmount: 700,
     available: true,
     quantity: 6,
-    imageUrl:
-      "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400",
+    imageUrl: "/images/Extension%20Cable%20Reel%20(30m).jpeg",
     condition: "Good",
   },
   {
@@ -515,8 +494,7 @@ const items = [
     depositAmount: 2400,
     available: true,
     quantity: 3,
-    imageUrl:
-      "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=400",
+    imageUrl: "/images/Portable%20Inverter%20(1%20KVA).jpeg",
     condition: "Excellent",
   },
   {
@@ -528,8 +506,7 @@ const items = [
     depositAmount: 1300,
     available: true,
     quantity: 4,
-    imageUrl:
-      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=400",
+    imageUrl: "/images/Site%20Work%20Light%20(LED%20Panel).jpeg",
     condition: "Good",
   },
   {
@@ -541,8 +518,7 @@ const items = [
     depositAmount: 1600,
     available: true,
     quantity: 3,
-    imageUrl:
-      "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400",
+    imageUrl: "/images/Power%20Distribution%20Box.jpeg",
     condition: "Good",
   },
   {
@@ -554,8 +530,7 @@ const items = [
     depositAmount: 3200,
     available: true,
     quantity: 2,
-    imageUrl:
-      "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=400",
+    imageUrl: "/images/Carpet%20Cleaner.jpeg",
     condition: "Good",
   },
   {
@@ -567,8 +542,7 @@ const items = [
     depositAmount: 2500,
     available: true,
     quantity: 3,
-    imageUrl:
-      "https://images.unsplash.com/photo-1581574206700-7e8d9f3d5b33?w=400",
+    imageUrl: "/images/Steam%20Cleaner.jpeg",
     condition: "Excellent",
   },
   {
@@ -580,8 +554,7 @@ const items = [
     depositAmount: 1100,
     available: true,
     quantity: 4,
-    imageUrl:
-      "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=400",
+    imageUrl: "/images/Leaf%20Blower.jpeg",
     condition: "Good",
   },
   {
@@ -592,8 +565,7 @@ const items = [
     depositAmount: 3400,
     available: true,
     quantity: 2,
-    imageUrl:
-      "https://images.unsplash.com/photo-1496180727794-817822f65950?w=400",
+    imageUrl: "/images/Floor%20Polisher.jpeg",
     condition: "Good",
   },
 ];
