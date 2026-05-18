@@ -72,6 +72,10 @@ router.post(
 
       if (
         !req.files ||
+        !req.files.before_front ||
+        !req.files.before_back ||
+        !req.files.before_left ||
+        !req.files.before_right ||
         !req.files.after_front ||
         !req.files.after_back ||
         !req.files.after_left ||
@@ -81,7 +85,7 @@ router.post(
 
         return res.status(400).json({
           error:
-            "Missing images. All 4 sides (front, back, left, right) are required.",
+            "Missing images. All 4 sides (front, back, left, right) are required for before and after.",
         });
       }
 
@@ -103,26 +107,22 @@ router.post(
         });
       }
 
-      if (!order.item || !order.item.images) {
-        cleanupFiles(req.files);
-
-        return res.status(404).json({
-          error: "Original item images missing from the database.",
-        });
-      }
-
-      const b_front = path.join(__dirname, "..", order.item.images.front);
-
-      const b_back = path.join(__dirname, "..", order.item.images.back);
-
-      const b_left = path.join(__dirname, "..", order.item.images.left);
-
-      const b_right = path.join(__dirname, "..", order.item.images.right);
+      const b_front = req.files["before_front"][0].path;
+      const b_back = req.files["before_back"][0].path;
+      const b_left = req.files["before_left"][0].path;
+      const b_right = req.files["before_right"][0].path;
 
       const a_front = req.files["after_front"][0].path;
       const a_back = req.files["after_back"][0].path;
       const a_left = req.files["after_left"][0].path;
       const a_right = req.files["after_right"][0].path;
+
+      if (!fs.existsSync(CV_SCRIPT)) {
+        cleanupFiles(req.files);
+        return res.status(500).json({
+          error: "Damage detector script not found.",
+        });
+      }
 
       const child = spawn(PYTHON_BIN, [
         CV_SCRIPT,
@@ -147,11 +147,21 @@ router.post(
         stderr += chunk.toString();
       });
 
+      child.on("error", (err) => {
+        console.error("Python spawn error:", err);
+        cleanupFiles(req.files);
+        return res.status(500).json({
+          error: "Failed to start python process.",
+          details: err.message,
+        });
+      });
+
       child.on("close", (code) => {
         if (code !== 0) {
           console.error("OpenCV Error:", stderr);
           return res.status(500).json({
             error: "AI 360 Vision analysis failed.",
+            details: stderr || "No stderr output.",
           });
         }
 
