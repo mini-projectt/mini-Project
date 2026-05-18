@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { getItem, createOrder, getReviews, createReview } from "../api/api";
-import { StarRating } from "../components/ItemCard";
+import {
+  getItem,
+  createOrder,
+  getReviews,
+  createReview,
+  getRecommendations,
+} from "../api/api";
+import ItemCard, { StarRating } from "../components/ItemCard";
 
 const PLACEHOLDER = "/images/ws.jpeg";
 
@@ -37,6 +43,11 @@ function ItemDetail() {
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [hoveredStar, setHoveredStar] = useState(0);
 
+  // Recommendations state
+  const [recommendations, setRecommendations] = useState([]);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
+  const [recommendationsError, setRecommendationsError] = useState("");
+
   const today = new Date().toISOString().split("T")[0];
 
   const [form, setForm] = useState({
@@ -51,6 +62,7 @@ function ItemDetail() {
   useEffect(() => {
     fetchItem();
     fetchReviews();
+    fetchRecommendations();
   }, [id]);
 
   const fetchReviews = async () => {
@@ -74,6 +86,21 @@ function ItemDetail() {
       setError("Item not found.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRecommendations = async () => {
+    try {
+      setRecommendationsLoading(true);
+      setRecommendationsError("");
+      const res = await getRecommendations(id);
+      setRecommendations(res.data?.recommendations || []);
+    } catch (err) {
+      setRecommendationsError(
+        err.response?.data?.error || "Failed to load recommendations.",
+      );
+    } finally {
+      setRecommendationsLoading(false);
     }
   };
 
@@ -631,6 +658,37 @@ function ItemDetail() {
           </div>
         </div>
       )}
+
+      {/* Recommendations Section */}
+      <div className="reviews-section">
+        <div className="reviews-header">
+          <h2 className="reviews-title">Recommended for you</h2>
+        </div>
+
+        {recommendationsLoading && (
+          <p className="reviews-loading">Loading recommendations...</p>
+        )}
+
+        {recommendationsError && (
+          <div className="alert alert-error">{recommendationsError}</div>
+        )}
+
+        {!recommendationsLoading &&
+          !recommendationsError &&
+          recommendations.length === 0 && (
+            <p className="reviews-empty">No recommendations available yet.</p>
+          )}
+
+        {!recommendationsLoading &&
+          !recommendationsError &&
+          recommendations.length > 0 && (
+            <div className="items-grid">
+              {recommendations.map((rec) => (
+                <ItemCard key={rec._id} item={rec} />
+              ))}
+            </div>
+          )}
+      </div>
 
       {/* Reviews Section */}
       <div className="reviews-section">

@@ -45,6 +45,10 @@ export const createItem = (data) => API.post("/items", data);
 export const updateItem = (id, data) => API.put(`/items/${id}`, data);
 export const deleteItem = (id) => API.delete(`/items/${id}`);
 
+// Recommendations
+export const getRecommendations = (itemId) =>
+  API.get(`/recommendations/${itemId}`);
+
 // Orders
 export const getOrders = () => API.get("/orders");
 export const getMyOrders = () => API.get("/orders/my-orders");

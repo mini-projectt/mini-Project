@@ -4,13 +4,16 @@ const fs = require("fs");
 const multer = require("multer");
 const { spawn } = require("child_process");
 const { authenticate, authorizeRole } = require("../middleware/auth");
+const Order = require("../models/Order");
 
 const router = express.Router();
 
 const localVenvPython = path.join(__dirname, "../../.venv/bin/python");
+
 const PYTHON_BIN =
   process.env.PYTHON_BIN ||
   (fs.existsSync(localVenvPython) ? localVenvPython : "python3");
+
 const CV_SCRIPT = path.join(
   __dirname,
   "../../scrach Detection/damage_detector.py",
@@ -19,14 +22,18 @@ const CV_SCRIPT = path.join(
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadPath = path.join(__dirname, "../uploads/returns");
-    if (!fs.existsSync(uploadPath))
+
+    if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
+    }
+
     cb(null, uploadPath);
   },
+
   filename: (req, file, cb) => {
     cb(
       null,
-      `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`,
+      `after_${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`,
     );
   },
 });
@@ -42,6 +49,18 @@ const upload = multer({ storage }).fields([
   { name: "after_right", maxCount: 1 },
 ]);
 
+const cleanupFiles = (files) => {
+  if (!files) return;
+
+  Object.values(files).forEach((fileArray) => {
+    fileArray.forEach((file) => {
+      if (fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+    });
+  });
+};
+
 router.post(
   "/verify-360",
   authenticate,
@@ -49,32 +68,56 @@ router.post(
   upload,
   async (req, res) => {
     try {
-      const requiredFields = [
-        "before_front",
-        "before_back",
-        "before_left",
-        "before_right",
-        "after_front",
-        "after_back",
-        "after_left",
-        "after_right",
-      ];
-      const missing = requiredFields.filter(
-        (field) => !req.files?.[field]?.length,
-      );
+      const { orderId } = req.body;
 
-      if (missing.length > 0) {
+      if (
+        !req.files ||
+        !req.files.after_front ||
+        !req.files.after_back ||
+        !req.files.after_left ||
+        !req.files.after_right
+      ) {
+        cleanupFiles(req.files);
+
         return res.status(400).json({
           error:
-            "Missing images. 8 files required: before_* and after_* for front, back, left, right.",
-          missing,
+            "Missing images. All 4 sides (front, back, left, right) are required.",
         });
       }
 
-      const b_front = req.files["before_front"][0].path;
-      const b_back = req.files["before_back"][0].path;
-      const b_left = req.files["before_left"][0].path;
-      const b_right = req.files["before_right"][0].path;
+      if (!orderId) {
+        cleanupFiles(req.files);
+
+        return res.status(400).json({
+          error: "Order ID is required.",
+        });
+      }
+
+      const order = await Order.findById(orderId).populate("item");
+
+      if (!order) {
+        cleanupFiles(req.files);
+
+        return res.status(404).json({
+          error: "Order not found.",
+        });
+      }
+
+      if (!order.item || !order.item.images) {
+        cleanupFiles(req.files);
+
+        return res.status(404).json({
+          error: "Original item images missing from the database.",
+        });
+      }
+
+      const b_front = path.join(__dirname, "..", order.item.images.front);
+
+      const b_back = path.join(__dirname, "..", order.item.images.back);
+
+      const b_left = path.join(__dirname, "..", order.item.images.left);
+
+      const b_right = path.join(__dirname, "..", order.item.images.right);
 
       const a_front = req.files["after_front"][0].path;
       const a_back = req.files["after_back"][0].path;
@@ -107,7 +150,6 @@ router.post(
       child.on("close", (code) => {
         if (code !== 0) {
           console.error("OpenCV Error:", stderr);
-
           return res.status(500).json({
             error: "AI 360 Vision analysis failed.",
           });
@@ -124,12 +166,16 @@ router.post(
             metrics: aiResult,
           });
         } catch (err) {
+          console.error("Failed to parse Python output:", stdout);
+
           return res.status(500).json({
             error: "Invalid Python output formatting.",
           });
         }
       });
     } catch (error) {
+      cleanupFiles(req.files);
+
       return res.status(500).json({
         error: error.message,
       });
