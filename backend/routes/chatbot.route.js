@@ -196,7 +196,8 @@ const intentResponseMap = {
     redirect: "/items",
   },
   RENT_ITEM: {
-    response: "Taking you to booking...",
+    response:
+      "To rent an item: 1) Open the item detail page. 2) Select rental dates. 3) Confirm and place the order. Taking you to booking...",
     redirect: "/rent",
   },
   RETURN_ITEM: {
@@ -234,7 +235,7 @@ router.post("/chat", authenticate, async (req, res) => {
         confidence: result.confidence || 0,
         entities: result.entities || { duration: null, location: null },
         response:
-          "I didn't understand. Try: rent a camera, return item, report damage",
+          "I didn't understand. Try: how to rent an item, return item, report damage, check order status, show available tools",
         redirect: null,
         latency: Date.now() - startedAt,
       });
@@ -268,7 +269,7 @@ router.post("/chat", authenticate, async (req, res) => {
       confidence: 0,
       entities: { duration: null, location: null },
       response:
-        "I didn't understand. Try: rent a camera, return item, report damage",
+        "I didn't understand. Try: how to rent an item, return item, report damage, check order status, show available tools",
       redirect: null,
       latency: Date.now() - startedAt,
     });

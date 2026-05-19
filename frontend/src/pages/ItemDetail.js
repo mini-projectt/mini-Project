@@ -514,6 +514,8 @@ function ItemDetail() {
         </div>
       </div>
 
+
+      {/* Payment */}
       {showPayment && (
         <div className="payment-overlay" role="dialog" aria-modal="true">
           <div className="payment-modal">

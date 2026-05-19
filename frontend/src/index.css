@@ -1092,18 +1092,20 @@ select.form-control option {
 .inspection-preview {
   border: 1px dashed var(--border);
   border-radius: var(--radius);
-  min-height: 160px;
+  min-height: 120px;
+  max-height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-muted);
   overflow: hidden;
+  padding: 6px;
 }
 
 .inspection-preview img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .inspection-empty {

@@ -95,7 +95,6 @@ function Chatbot() {
       if (data.redirect) {
         setTimeout(() => {
           navigate(data.redirect);
-          setIsOpen(false);
         }, 1500);
       }
     } catch (error) {
